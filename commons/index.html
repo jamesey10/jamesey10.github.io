@@ -158,6 +158,22 @@
   th { font-size: .85rem; color: var(--muted); font-weight: 600; }
   .swatch { display: inline-block; width: .8em; height: .8em; border-radius: 3px; margin-right: .4em; vertical-align: -1px; }
 
+  .fine-form { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: 1rem; }
+  .fine-form select, .fine-form input {
+    padding: .4em .5em; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: .9em;
+  }
+  .fine-form #fineAmt { width: 5.5em; }
+  .fine-form #fineWhy { flex: 1; min-width: 8em; }
+  .fine-list { list-style: none; padding: 0; margin: .6rem 0 0; font-size: .9em; }
+  .fine-list li { display: flex; align-items: center; gap: .5rem; padding: .25rem 0; border-bottom: 1px solid var(--line); }
+  .fine-list li span.amt { color: var(--bad); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .fine-list li .why { color: var(--muted); flex: 1; }
+  .fine-list button { padding: .1em .5em; font-size: .85em; }
+  td.fine { color: var(--bad); }
+  tr.class-row td { font-weight: 600; }
+  .badge.anon { background: #e8e3f3; color: #4a3a75; }
+  .game-toggles { display: flex; gap: .3rem 1.5rem; flex-wrap: wrap; margin-top: .9rem; }
+  .game-toggles .checkbox { margin-bottom: 0; }
   #chart svg { width: 100%; height: auto; display: block; }
   .legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .85rem; color: var(--muted); margin-top: .3rem; }
 
@@ -243,6 +259,7 @@
       </div>
       <label class="checkbox"><input id="showRounds" type="checkbox"> Show students how many rounds there are</label>
       <label class="checkbox"><input id="maskInputs" type="checkbox" checked> Hide numbers while typing them in</label>
+      <label class="checkbox"><input id="anonymous" type="checkbox"> Anonymous mode: show only the class total, not each team's catch</label>
 
       <h2 style="margin-top:.6rem">Teams</h2>
       <div id="teamFields"></div>
@@ -261,9 +278,11 @@
         <li>Press <b>Reveal</b>. Each team gets what it asked for. If the lake can't cover every request, the catch is split in proportion to what each team asked for.</li>
         <li>Press <b>Regrow</b>. Whatever is left in the lake multiplies, up to its capacity.</li>
         <li>If the lake hits zero it collapses and the game ends early.</li>
-        <li>Score = total <span class="rName">fish</span> caught by your team.</li>
+        <li>Score = total <span class="rName">fish</span> caught by your team, minus any fines.</li>
       </ol>
       <p class="muted">Instructor tips: keep the round count hidden to avoid "last round" grabs. Run a few rounds silent, then tick <b>Teams may talk this round</b> and see whether communication changes behavior.</p>
+      <p class="muted"><b>Anonymous mode</b> hides each team's catch so nobody can tell who overfished (no monitoring). It can be switched on or off during the game, and the results screen always shows the full breakdown.</p>
+      <p class="muted"><b>Fines</b> (under the scoreboard) subtract points from a team's score, for sanctions the class agrees on. Fines don't change the lake.</p>
       <p class="muted">Keyboard: <b>Enter</b> moves between team boxes and reveals; <b>Enter</b> again advances.</p>
       <p class="muted">Progress is saved in this browser, so an accidental refresh won't lose the game.</p>
     </div>
@@ -276,6 +295,7 @@
         <div class="round-bar">
           <span class="round" id="roundLabel">Round 1</span>
           <span class="badge talk hidden" id="talkBadge">Teams may talk</span>
+          <span class="badge anon hidden" id="anonBadge">Anonymous</span>
           <span class="badge danger hidden" id="dangerBadge">Running low</span>
         </div>
         <div class="stock-line">
@@ -296,7 +316,10 @@
       <div class="panel">
         <h2 id="phaseTitle">How many will each team catch?</h2>
         <div class="teams" id="teamCards"></div>
-        <label class="checkbox" style="margin-top:.9rem" id="talkWrap"><input id="talk" type="checkbox"> Teams may talk this round</label>
+        <div class="game-toggles">
+          <label class="checkbox" id="talkWrap"><input id="talk" type="checkbox"> Teams may talk this round</label>
+          <label class="checkbox"><input id="anonToggle" type="checkbox"> Anonymous (class total only)</label>
+        </div>
         <div class="msg" id="msg"></div>
         <div class="actions">
           <button class="primary" id="btnMain" disabled>Reveal</button>
@@ -305,6 +328,13 @@
       <div class="panel">
         <h2>Scoreboard</h2>
         <table id="score"></table>
+        <div class="fine-form">
+          <select id="fineTeam" aria-label="Team to fine"></select>
+          <input id="fineAmt" type="text" inputmode="numeric" placeholder="Points" aria-label="Fine amount">
+          <input id="fineWhy" type="text" placeholder="Reason (optional)" aria-label="Reason for fine">
+          <button id="btnFine">Fine</button>
+        </div>
+        <ul class="fine-list" id="fineList"></ul>
       </div>
     </div>
   </section>
@@ -314,6 +344,7 @@
     <div class="panel">
       <h2 id="resHeadline">Game over</h2>
       <div class="big" id="resBig"></div>
+      <p class="muted hidden" id="anonReveal">Anonymous mode was on. Here is who actually caught what.</p>
       <div class="podium" id="podium"></div>
       <div class="compare">
         <div class="panel"><div class="muted">Total caught by the class</div><div class="v" id="cmpTotal">0</div></div>
@@ -451,6 +482,7 @@
     $("rounds").value = cfg.rounds;
     $("showRounds").checked = cfg.showRounds;
     $("maskInputs").checked = cfg.mask;
+    $("anonymous").checked = !!cfg.anonymous;
     renderTeamFields(cfg.teams);
     syncResName();
   }
@@ -474,6 +506,7 @@
       rounds: clampInt($("rounds").value, 1, 30, 8),
       showRounds: $("showRounds").checked,
       mask: $("maskInputs").checked,
+      anonymous: $("anonymous").checked,
       teams: teams
     };
   }
@@ -503,6 +536,19 @@
     S.history.forEach(function (h) { h.takes.forEach(function (v, i) { t[i] += v; }); });
     return t;
   }
+  function teamFines() {
+    var f = [0, 0, 0, 0];
+    S.fines.forEach(function (x) { f[x.team] += x.amount; });
+    return f;
+  }
+  function teamScores() {
+    var t = teamTotals(), f = teamFines();
+    return t.map(function (v, i) { return v - f[i]; });
+  }
+  function anon() { return !!S.cfg.anonymous; }
+  var NEUTRAL = "#8a99a6";
+  var pondMode = "plain";
+  var revealing = false;
 
   function buildPond() {
     var cap = S.cfg.capacity;
@@ -518,6 +564,7 @@
 
   // mode: "plain" shows stock; "caught" colors fish taken this round; "grown" pops new fish.
   function paintPond(mode) {
+    pondMode = mode;
     var cells = $("pond").children;
     var h = lastRound();
     var i;
@@ -533,7 +580,7 @@
         for (var k = 0; k < n; k++, idx--) {
           if (idx < 0) break;
           cells[idx].classList.add("caught");
-          cells[idx].style.backgroundColor = S.cfg.teams[t].color;
+          cells[idx].style.backgroundColor = anon() ? NEUTRAL : S.cfg.teams[t].color;
         }
       });
     } else if (mode === "grown" && h) {
@@ -570,23 +617,28 @@
     $("roundLabel").textContent = "Round " + r + (S.cfg.showRounds ? " of " + S.cfg.rounds : "");
     var talk = S.phase === "entry" ? $("talk").checked : (lastRound() && lastRound().talk);
     $("talkBadge").classList.toggle("hidden", !talk);
+    $("anonBadge").classList.toggle("hidden", !anon());
   }
 
   function renderTeamCards() {
-    var totals = teamTotals();
+    var totals = teamTotals(), fines = teamFines(), scores = teamScores();
     var h = lastRound();
     var html = "";
     S.cfg.teams.forEach(function (t, i) {
+      var line;
+      if (anon()) line = fines[i] ? "Fines: <b>−" + fines[i] + "</b>" : "Catch hidden";
+      else if (fines[i]) line = "Score: <b>" + scores[i] + "</b> (caught " + totals[i] + ", fined " + fines[i] + ")";
+      else line = "Total caught: <b>" + totals[i] + "</b>";
       html += '<div class="team-card" id="card' + i + '" style="border-left-color:' + esc(t.color) + '">' +
         '<div class="name">' + esc(t.name) + "</div>" +
-        '<div class="total">Total caught: <b id="tot' + i + '">' + totals[i] + "</b></div>";
+        '<div class="total" id="tot' + i + '">' + line + "</div>";
       if (S.phase === "entry") {
         html += '<input id="in' + i + '" type="text" inputmode="numeric" autocomplete="off" ' +
           'placeholder="0–' + S.cfg.maxTake + '" value="' + esc(S.pending[i]) + '">';
       } else {
-        html += '<div class="took" id="took' + i + '">' + (h ? h.takes[i] : "") + "</div>" +
+        html += '<div class="took" id="took' + i + '">' + (h ? (anon() ? "?" : h.takes[i]) : "") + "</div>" +
           '<div class="note" id="note' + i + '">' +
-          (h && h.takes[i] !== h.requests[i] ? "asked for " + h.requests[i] : "") + "</div>";
+          (h && !anon() && h.takes[i] !== h.requests[i] ? "asked for " + h.requests[i] : "") + "</div>";
       }
       html += "</div>";
     });
@@ -669,30 +721,79 @@
   }
 
   function renderScore() {
-    var totals = teamTotals();
-    var rows = S.history.length;
+    var totals = teamTotals(), fines = teamFines(), scores = teamScores();
+    var hide = anon();
     var html = "<thead><tr><th>Team</th>";
-    for (var r = 0; r < rows; r++) html += "<th>R" + (r + 1) + "</th>";
-    html += "<th>Total</th></tr></thead><tbody>";
+    S.history.forEach(function (h, r) { html += "<th>R" + (r + 1) + "</th>"; });
+    html += "<th>Caught</th><th>Fines</th><th>Score</th></tr></thead><tbody>";
     S.cfg.teams.forEach(function (t, i) {
       html += '<tr><td><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + "</td>";
       S.history.forEach(function (h) {
-        html += "<td>" + h.takes[i] + "</td>";
+        html += "<td>" + (hide ? "?" : h.takes[i]) + "</td>";
       });
-      html += "<td><b>" + totals[i] + "</b></td></tr>";
+      html += "<td>" + (hide ? "?" : totals[i]) + "</td>" +
+        '<td class="fine">' + (fines[i] ? "−" + fines[i] : "") + "</td>" +
+        "<td><b>" + (hide ? "?" : scores[i]) + "</b></td></tr>";
     });
+    html += '<tr class="class-row"><td>Class total</td>';
+    S.history.forEach(function (h) { html += "<td>" + sum(h.takes) + "</td>"; });
+    html += "<td>" + sum(totals) + "</td><td></td><td></td></tr>";
     html += '<tr><td class="muted">Lake after regrowth</td>';
     S.history.forEach(function (h) {
       html += '<td class="muted">' + (h.grown ? h.afterGrowth : "…") + "</td>";
     });
-    html += "<td></td></tr></tbody>";
+    html += "<td></td><td></td><td></td></tr></tbody>";
     $("score").innerHTML = html;
+  }
+
+  function renderFines() {
+    var opts = "";
+    S.cfg.teams.forEach(function (t, i) { opts += '<option value="' + i + '">' + esc(t.name) + "</option>"; });
+    var sel = $("fineTeam"), keep = sel.value;
+    sel.innerHTML = opts;
+    if (keep) sel.value = keep;
+    var html = "";
+    S.fines.forEach(function (f, k) {
+      html += '<li><span class="swatch" style="background:' + esc(S.cfg.teams[f.team].color) + '"></span>' +
+        "<span>R" + f.round + " " + esc(S.cfg.teams[f.team].name) + '</span><span class="amt">−' + f.amount + "</span>" +
+        '<span class="why">' + esc(f.reason) + "</span>" +
+        '<button data-k="' + k + '" title="Remove this fine" aria-label="Remove fine">×</button></li>';
+    });
+    $("fineList").innerHTML = html;
+  }
+
+  function addFine() {
+    var amt = clampInt($("fineAmt").value, 0, 9999, 0);
+    if (amt <= 0) { $("fineAmt").focus(); return; }
+    S.fines.push({
+      team: parseInt($("fineTeam").value, 10) || 0,
+      amount: amt,
+      reason: ($("fineWhy").value || "").trim(),
+      round: Math.max(1, Math.min(currentRound(), S.cfg.rounds))
+    });
+    $("fineAmt").value = "";
+    $("fineWhy").value = "";
+    save();
+    refreshScores();
+  }
+
+  // Re-render everything that depends on scores or anonymous mode without restarting animations.
+  function refreshScores() {
+    renderRoundLabel();
+    renderTeamCards();
+    if (S.phase === "entry") validateEntry();
+    renderScore();
+    renderFines();
+    chartSvg("chartSvg");
+    renderLegend();
+    paintPond(pondMode);
   }
 
   /* ---------- Chart (inline SVG, no libraries) ---------- */
 
-  function chartSvg(target) {
+  function chartSvg(target, full) {
     var cfg = S.cfg, hist = S.history;
+    var hide = anon() && !full;
     var W = 640, H = 260, L = 44, R = 12, T = 14, B = 34;
     var n = Math.max(cfg.rounds, hist.length);
     var cw = (W - L - R) / n;
@@ -707,10 +808,12 @@
     // stacked catch bars
     hist.forEach(function (h, r) {
       var x = L + r * cw + cw * 0.22, w = cw * 0.56, base = y(0);
-      h.takes.forEach(function (v, i) {
+      var parts = hide ? [sum(h.takes)] : h.takes;
+      parts.forEach(function (v, i) {
         if (!v) return;
         var top = y(v) - y(0); // negative height
-        s += '<rect x="' + x + '" y="' + (base + top) + '" width="' + w + '" height="' + (-top) + '" fill="' + esc(cfg.teams[i].color) + '" opacity=".85"/>';
+        var fill = hide ? NEUTRAL : cfg.teams[i].color;
+        s += '<rect x="' + x + '" y="' + (base + top) + '" width="' + w + '" height="' + (-top) + '" fill="' + esc(fill) + '" opacity=".85"/>';
         base += top;
       });
     });
@@ -736,29 +839,35 @@
 
   function renderLegend() {
     var html = '<span><span class="swatch" style="background:#0b6e99"></span>Lake at start of round</span>';
-    S.cfg.teams.forEach(function (t) {
-      html += '<span><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + " catch</span>";
-    });
+    if (anon()) {
+      html += '<span><span class="swatch" style="background:' + NEUTRAL + '"></span>Class catch</span>';
+    } else {
+      S.cfg.teams.forEach(function (t) {
+        html += '<span><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + " catch</span>";
+      });
+    }
     $("chartLegend").innerHTML = html;
   }
 
   /* ---------- Flow ---------- */
 
-  function renderAll(pondMode, delta) {
+  function renderAll(mode, delta) {
     $("title").textContent = "Tragedy of the Commons: " + S.cfg.emoji + " " + S.cfg.resName;
     renderRoundLabel();
     renderStock(delta);
     renderTeamCards();
     renderPhase();
     renderScore();
+    renderFines();
+    $("anonToggle").checked = anon();
     chartSvg("chartSvg");
     renderLegend();
-    paintPond(pondMode);
+    paintPond(mode);
     $("btnUndo").classList.toggle("hidden", !S.history.length);
   }
 
   function startGame(cfg) {
-    S = { cfg: cfg, stock: cfg.start, history: [], phase: "entry", pending: ["", "", "", ""], over: false };
+    S = { cfg: cfg, stock: cfg.start, history: [], fines: [], phase: "entry", pending: ["", "", "", ""], over: false };
     $("talk").checked = false;
     save();
     showScreen("game");
@@ -783,7 +892,8 @@
       afterHarvest: S.stock - sum(takes),
       afterGrowth: null,
       grown: false,
-      talk: $("talk").checked
+      talk: $("talk").checked,
+      anon: anon()
     };
     S.history.push(h);
     S.stock = h.afterHarvest;
@@ -792,8 +902,16 @@
     save();
 
     renderAll("caught", -sum(takes));
-    // Dramatic one-by-one reveal.
     var btn = $("btnMain");
+    if (anon()) {
+      // Nothing per-team to reveal; show the class total straight away.
+      $("msg").textContent = revealMessage(h);
+      $("msg").style.color = h.afterHarvest <= 0 ? "var(--bad)" : "";
+      btn.focus();
+      return;
+    }
+    // Dramatic one-by-one reveal.
+    setRevealing(true);
     btn.disabled = true;
     S.cfg.teams.forEach(function (t, i) {
       $("took" + i).style.visibility = "hidden";
@@ -812,12 +930,20 @@
         i++;
       } else {
         clearInterval(timer);
+        setRevealing(false);
         $("msg").textContent = revealMessage(h);
         $("msg").style.color = h.afterHarvest <= 0 ? "var(--bad)" : "";
         btn.disabled = false;
         btn.focus();
       }
     }, 650);
+  }
+
+  // Lock controls that re-render the team cards while the reveal animation runs.
+  function setRevealing(on) {
+    revealing = on;
+    $("anonToggle").disabled = on;
+    $("btnFine").disabled = on;
   }
 
   function doGrow() {
@@ -856,6 +982,7 @@
   }
 
   function doMain() {
+    if (S.over) { renderResults(); showScreen("results"); return; }
     if (S.phase === "entry") doReveal();
     else if (S.phase === "revealed") {
       if (lastRound().afterHarvest <= 0) finish();
@@ -886,7 +1013,7 @@
 
   function renderResults() {
     var cfg = S.cfg;
-    var totals = teamTotals();
+    var totals = teamTotals(), fines = teamFines(), scores = teamScores();
     var classTotal = sum(totals);
     var collapsed = S.stock <= 0;
     var played = S.history.length;
@@ -896,16 +1023,20 @@
       ? "Everyone loses access to the " + cfg.resName + " from now on."
       : S.stock + " " + cfg.resName + " remain for the future.";
 
-    var order = [0, 1, 2, 3].sort(function (a, b) { return totals[b] - totals[a]; });
+    var order = [0, 1, 2, 3].sort(function (a, b) { return scores[b] - scores[a]; });
     var html = "";
     order.forEach(function (i, rank) {
       var t = cfg.teams[i];
       html += '<div class="team-card" style="border-left-color:' + esc(t.color) + '">' +
         '<div class="muted">#' + (rank + 1) + "</div>" +
         '<div class="name">' + esc(t.name) + "</div>" +
-        '<div class="took">' + totals[i] + "</div></div>";
+        '<div class="took">' + scores[i] + "</div>" +
+        '<div class="muted">' + (fines[i] ? "caught " + totals[i] + ", fined " + fines[i] : "caught " + totals[i]) +
+        "</div></div>";
     });
     $("podium").innerHTML = html;
+    var wasAnon = S.history.some(function (h) { return h.anon; });
+    $("anonReveal").classList.toggle("hidden", !wasAnon);
 
     var best = bestPossible(cfg);
     $("cmpTotal").textContent = classTotal;
@@ -920,7 +1051,7 @@
       "“Best possible” is the most the class could have caught in " + cfg.rounds +
       " rounds with perfect cooperation, given the " + cfg.maxTake + "-per-team limit.";
 
-    chartSvg("resChart");
+    chartSvg("resChart", true);
   }
 
   /* ---------- Wiring ---------- */
@@ -950,9 +1081,9 @@
     showScreen("game");
     buildPond();
     renderAll("plain");
-    $("btnMain").disabled = true;
-    $("btnMain").textContent = "Game over";
-    $("msg").textContent = "Game over. Use Undo round or start a new game.";
+    $("btnMain").disabled = false;
+    $("btnMain").textContent = "See results";
+    $("msg").textContent = "Game over. Use Undo round, add fines, or go back to the results.";
   });
   $("btnNew").addEventListener("click", function () {
     fillSetup(S.cfg);
@@ -960,6 +1091,24 @@
     showScreen("setup");
   });
   $("talk").addEventListener("change", function () { renderRoundLabel(); });
+  $("anonToggle").addEventListener("change", function () {
+    if (revealing) return;
+    S.cfg.anonymous = $("anonToggle").checked;
+    save();
+    refreshScores();
+  });
+  $("btnFine").addEventListener("click", addFine);
+  $("fineAmt").addEventListener("keydown", function (e) { if (e.key === "Enter") addFine(); });
+  $("fineWhy").addEventListener("keydown", function (e) { if (e.key === "Enter") addFine(); });
+  $("fineList").addEventListener("click", function (e) {
+    var k = e.target.getAttribute && e.target.getAttribute("data-k");
+    if (k === null || revealing) return;
+    var f = S.fines[+k];
+    if (!f || !confirm("Remove the " + f.amount + "-point fine on " + S.cfg.teams[f.team].name + "?")) return;
+    S.fines.splice(+k, 1);
+    save();
+    refreshScores();
+  });
   $("resName").addEventListener("input", syncResName);
   $("btnFull").addEventListener("click", function () {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -978,6 +1127,7 @@
   var saved = load();
   if (saved && saved.cfg && saved.history) {
     S = saved;
+    if (!S.fines) S.fines = [];
     fillSetup(S.cfg);
     $("btnResume").classList.remove("hidden");
   } else {

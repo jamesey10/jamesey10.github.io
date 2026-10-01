@@ -273,6 +273,7 @@
       <label class="checkbox"><input id="showRounds" type="checkbox"> Show students how many rounds there are</label>
       <label class="checkbox"><input id="maskInputs" type="checkbox" checked> Hide numbers while typing them in</label>
       <label class="checkbox"><input id="anonymous" type="checkbox"> Anonymous mode: show only the class total, not each team's catch</label>
+      <label class="checkbox"><input id="noWinnerRule" type="checkbox" checked> No winner if the lake collapses before the last round</label>
 
       <h2 style="margin-top:.6rem">Teams</h2>
       <div id="teamFields"></div>
@@ -290,11 +291,12 @@
         <li>Each round, every team secretly writes down how many <span class="rName">fish</span> it wants to catch (0 to the max). Collect the slips and type the numbers in.</li>
         <li>Press <b>Reveal</b>. Each team gets what it asked for. If the lake can't cover every request, the catch is split in proportion to what each team asked for.</li>
         <li>Press <b>Regrow</b>. Whatever is left in the lake multiplies, up to its capacity.</li>
-        <li>If the lake hits zero before the last round, it collapses, the game ends early, and <b>no one wins</b>.</li>
+        <li>If the lake hits zero it collapses and the game ends early<span id="ruleNoWin">. If that happens before the last round, <b>no one wins</b></span>.</li>
         <li>Score = total <span class="rName">fish</span> caught by your team, minus any fines.</li>
       </ol>
       <p class="muted">Instructor tips: keep the round count hidden to avoid "last round" grabs. Run a few rounds silent, then tick <b>Teams may talk this round</b> and see whether communication changes behavior.</p>
       <p class="muted"><b>Anonymous mode</b> hides each team's catch so nobody can tell who overfished (no monitoring). It can be switched on or off during the game, and the results screen always shows the full breakdown.</p>
+      <p class="muted"><b>No-winner rule:</b> turn it off for a pure Hardin game, where teams keep their catch even if the lake collapses. Turn it on when you want the class to share a stake in the lake lasting.</p>
       <p class="muted"><b>Fines</b> (under the scoreboard) subtract points from a team's score, for sanctions the class agrees on. Fines don't change the lake.</p>
       <p class="muted">Keyboard: <b>Enter</b> moves between team boxes and reveals; <b>Enter</b> again advances.</p>
       <p class="muted">Progress is saved in this browser, so an accidental refresh won't lose the game.</p>
@@ -462,7 +464,8 @@
       capacity: S.cfg.capacity,
       played: S.history.length,
       collapsed: S.stock <= 0,
-      noWinner: S.stock <= 0 && S.history.length < S.cfg.rounds,
+      noWinner: isNoWinner(),
+      noWinnerRule: noWinnerRule(),
       left: S.stock,
       levels: levels,
       classTotal: sum(teamTotals()),
@@ -576,6 +579,8 @@
     $("showRounds").checked = cfg.showRounds;
     $("maskInputs").checked = cfg.mask;
     $("anonymous").checked = !!cfg.anonymous;
+    $("noWinnerRule").checked = cfg.noWinnerRule !== false;
+    syncRuleText();
     renderTeamFields(cfg.teams);
     syncResName();
   }
@@ -600,8 +605,13 @@
       showRounds: $("showRounds").checked,
       mask: $("maskInputs").checked,
       anonymous: $("anonymous").checked,
+      noWinnerRule: $("noWinnerRule").checked,
       teams: teams
     };
+  }
+
+  function syncRuleText() {
+    $("ruleNoWin").classList.toggle("hidden", !$("noWinnerRule").checked);
   }
 
   function syncResName() {
@@ -642,6 +652,9 @@
     return t.map(function (v, i) { return v - f[i]; });
   }
   function anon() { return !!S.cfg.anonymous; }
+  // Older saved games predate the setting and used the rule, so treat missing as on.
+  function noWinnerRule() { return S.cfg.noWinnerRule !== false; }
+  function isNoWinner() { return noWinnerRule() && S.stock <= 0 && S.history.length < S.cfg.rounds; }
   var NEUTRAL = "#8a99a6";
   var pondMode = "plain";
   var revealing = false;
@@ -806,7 +819,7 @@
     if (asked > h.stockBefore) m += "Demand (" + asked + ") was more than the lake held, so the catch was split. ";
     if (h.afterHarvest <= 0) {
       m += "The lake is empty. It has collapsed.";
-      if (S.history.length < S.cfg.rounds) m += " No one wins.";
+      if (noWinnerRule() && S.history.length < S.cfg.rounds) m += " No one wins.";
     }
     else m += h.afterHarvest + " " + S.cfg.resName + " left in the lake.";
     return m;
@@ -1118,7 +1131,7 @@
     var collapsed = S.stock <= 0;
     var played = S.history.length;
     // The game only has a winner if the lake survives every scheduled round.
-    var noWinner = collapsed && played < cfg.rounds;
+    var noWinner = isNoWinner();
 
     $("resHeadline").textContent = collapsed ? "The lake collapsed in round " + played : "Game over after " + played + " rounds";
     $("resBig").textContent = noWinner
@@ -1216,6 +1229,7 @@
     refreshScores();
   });
   $("resName").addEventListener("input", syncResName);
+  $("noWinnerRule").addEventListener("change", syncRuleText);
   $("btnFull").addEventListener("click", function () {
     if (document.fullscreenElement) document.exitFullscreen();
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
@@ -1244,6 +1258,7 @@
       var conds = "";
       conds += g.talkRounds ? chip("Talk: " + g.talkRounds + " rd", "talk") : chip("Silent");
       if (g.anonRounds) conds += chip("Anonymous: " + g.anonRounds + " rd", "anon");
+      if (g.noWinnerRule) conds += chip("No-winner rule");
       if (g.fineCount) conds += chip("Fines: " + g.fineCount, "danger");
       var pct = g.best > 0 ? Math.round(100 * g.classTotal / g.best) + "%" : "n/a";
       var when = new Date(g.endedAt);

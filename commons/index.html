@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tragedy of the Commons</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --panel: #ffffff;
+    --ink: #14202b;
+    --muted: #5b6b78;
+    --line: #d7dee4;
+    --water: #d8ecf7;
+    --water-deep: #9ccbe6;
+    --accent: #0b6e99;
+    --good: #1d7a45;
+    --bad: #b3261e;
+    --warn: #a15c00;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 18px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button {
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    border-radius: 10px;
+    padding: .55em 1em;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 1.15em;
+    padding: .7em 1.3em;
+  }
+  button.primary:disabled { opacity: .4; cursor: not-allowed; }
+  button.small { font-size: .85em; padding: .35em .75em; }
+  .hidden { display: none !important; }
+
+  header {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    padding: .8rem 1.2rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 1.35rem; margin: 0; flex: 1; }
+  header .tools { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+  main { padding: 1rem 1.2rem 2rem; max-width: 1500px; margin: 0 auto; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem 1.2rem;
+  }
+  h2 { margin: 0 0 .6rem; font-size: 1.25rem; }
+  .muted { color: var(--muted); }
+
+  /* ---------- Setup ---------- */
+  #setup { display: grid; gap: 1rem; grid-template-columns: 1.1fr 1fr; }
+  .field { display: flex; flex-direction: column; gap: .25rem; margin-bottom: .8rem; }
+  .field label { font-weight: 600; font-size: .9em; }
+  .field small { color: var(--muted); font-size: .8em; }
+  .field input, .field select {
+    padding: .45em .6em; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+  .team-row { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+  .team-row input[type=text] { flex: 1; padding: .45em .6em; border: 1px solid var(--line); border-radius: 8px; }
+  .team-row input[type=color] { width: 3rem; height: 2.4rem; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: #fff; }
+  .rules li { margin-bottom: .35rem; }
+  .checkbox { display: flex; gap: .5rem; align-items: center; margin-bottom: .8rem; }
+  .checkbox input { width: 1.2em; height: 1.2em; }
+
+  /* ---------- Game ---------- */
+  #game { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+  .round-bar { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .6rem; }
+  .round-bar .round { font-size: 1.6rem; font-weight: 700; }
+  .badge {
+    display: inline-block; padding: .2em .7em; border-radius: 999px; font-size: .8em; font-weight: 600;
+    background: #e7eef3; color: var(--ink);
+  }
+  .badge.talk { background: #fff1d6; color: var(--warn); }
+  .badge.danger { background: #fde4e2; color: var(--bad); }
+
+  .stock-line { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; margin-bottom: .6rem; }
+  .stock-num { font-size: 3.4rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stock-cap { font-size: 1.2rem; color: var(--muted); }
+  .stock-delta { font-size: 1.3rem; font-weight: 700; }
+  .stock-delta.up { color: var(--good); }
+  .stock-delta.down { color: var(--bad); }
+
+  #pond {
+    container-type: inline-size;
+    background: radial-gradient(ellipse at 50% 40%, var(--water) 0%, var(--water-deep) 100%);
+    border-radius: 22px;
+    padding: 2.5%;
+    display: grid;
+    gap: 2px;
+  }
+  .cell {
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 30%;
+    line-height: 1;
+    transition: opacity .5s, transform .5s, background-color .3s;
+  }
+  .cell .e { font-size: var(--fs, 20px); }
+  .cell.empty .e { opacity: 0; }
+  .cell.caught { opacity: .9; }
+  .cell.caught .e { opacity: .25; }
+  .cell.newborn .e { animation: pop .7s ease-out both; }
+  @keyframes pop {
+    0% { transform: scale(0); opacity: 0; }
+    70% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+
+  .teams { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+  .team-card {
+    border: 2px solid var(--line); border-radius: var(--radius);
+    padding: .7rem .9rem; background: #fff;
+    border-left-width: 10px;
+  }
+  .team-card .name { font-weight: 700; font-size: 1.1rem; }
+  .team-card .total { color: var(--muted); font-size: .9rem; }
+  .team-card input {
+    width: 100%; margin-top: .4rem; font-size: 2rem; font-weight: 700; text-align: center;
+    padding: .2em; border: 2px solid var(--line); border-radius: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .team-card input.invalid { border-color: var(--bad); background: #fff6f5; }
+  .masked input { -webkit-text-security: disc; text-security: disc; }
+  .team-card .took {
+    font-size: 2.6rem; font-weight: 800; text-align: center; margin-top: .2rem;
+    font-variant-numeric: tabular-nums; min-height: 1.2em;
+  }
+  .team-card .note { text-align: center; font-size: .8rem; color: var(--warn); min-height: 1.1em; }
+  .team-card.flip .took { animation: flip .45s ease-out both; }
+  @keyframes flip { from { transform: rotateX(90deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .actions { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
+  .msg { font-size: 1.1rem; font-weight: 600; margin-top: .8rem; min-height: 1.4em; }
+
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: .4rem .5rem; text-align: right; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-size: .85rem; color: var(--muted); font-weight: 600; }
+  .swatch { display: inline-block; width: .8em; height: .8em; border-radius: 3px; margin-right: .4em; vertical-align: -1px; }
+
+  #chart svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .85rem; color: var(--muted); margin-top: .3rem; }
+
+  .stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+
+  /* ---------- Results ---------- */
+  #results .big { font-size: 2.2rem; font-weight: 800; margin: .2rem 0 1rem; }
+  .podium { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin: 1rem 0; }
+  .podium .team-card { text-align: center; }
+  .podium .team-card .took { font-size: 2.4rem; }
+  .compare { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin: 1rem 0; }
+  .compare .panel { text-align: center; }
+  .compare .v { font-size: 2.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  #resChart { max-width: 900px; }
+  .discuss li { margin-bottom: .5rem; font-size: 1.1rem; }
+
+  @media (max-width: 900px) {
+    #setup, #game { grid-template-columns: 1fr; }
+    .podium { grid-template-columns: 1fr 1fr; }
+    .compare { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .grid2, .teams { grid-template-columns: 1fr; }
+    main { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="title">Tragedy of the Commons</h1>
+  <div class="tools">
+    <button class="small hidden" id="btnUndo" title="Undo the last revealed round">Undo round</button>
+    <button class="small hidden" id="btnSettings">Settings / new game</button>
+    <button class="small" id="btnFull">Full screen</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ================= SETUP ================= -->
+  <section id="setup">
+    <div class="panel">
+      <h2>Game setup</h2>
+      <div class="grid2">
+        <div class="field">
+          <label for="resName">Resource (plural)</label>
+          <input id="resName" type="text" value="fish">
+        </div>
+        <div class="field">
+          <label for="resEmoji">Icon</label>
+          <select id="resEmoji">
+            <option value="🐟">🐟 Fish</option>
+            <option value="🌲">🌲 Trees</option>
+            <option value="🐄">🐄 Cattle</option>
+            <option value="🦌">🦌 Deer</option>
+            <option value="💧">💧 Water</option>
+            <option value="🌾">🌾 Grain</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="capacity">Lake capacity</label>
+          <input id="capacity" type="number" min="10" max="400" value="100">
+          <small>Most the resource can ever hold.</small>
+        </div>
+        <div class="field">
+          <label for="start">Starting amount</label>
+          <input id="start" type="number" min="1" max="400" value="100">
+        </div>
+        <div class="field">
+          <label for="growth">Regrowth multiplier</label>
+          <input id="growth" type="number" min="1.1" max="5" step="0.1" value="2">
+          <small>What's left after harvest is multiplied by this (capped at capacity).</small>
+        </div>
+        <div class="field">
+          <label for="maxTake">Max harvest per team per round</label>
+          <input id="maxTake" type="number" min="1" max="400" value="20">
+        </div>
+        <div class="field">
+          <label for="rounds">Number of rounds</label>
+          <input id="rounds" type="number" min="1" max="30" value="8">
+        </div>
+      </div>
+      <label class="checkbox"><input id="showRounds" type="checkbox"> Show students how many rounds there are</label>
+      <label class="checkbox"><input id="maskInputs" type="checkbox" checked> Hide numbers while typing them in</label>
+
+      <h2 style="margin-top:.6rem">Teams</h2>
+      <div id="teamFields"></div>
+
+      <div class="actions">
+        <button class="primary" id="btnStart">Start game</button>
+        <button id="btnResume" class="hidden">Resume saved game</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>How it works</h2>
+      <ol class="rules">
+        <li>Four teams share one lake of <b class="rName">fish</b>.</li>
+        <li>Each round, every team secretly writes down how many <span class="rName">fish</span> it wants to catch (0 to the max). Collect the slips and type the numbers in.</li>
+        <li>Press <b>Reveal</b>. Each team gets what it asked for. If the lake can't cover every request, the catch is split in proportion to what each team asked for.</li>
+        <li>Press <b>Regrow</b>. Whatever is left in the lake multiplies, up to its capacity.</li>
+        <li>If the lake hits zero it collapses and the game ends early.</li>
+        <li>Score = total <span class="rName">fish</span> caught by your team.</li>
+      </ol>
+      <p class="muted">Instructor tips: keep the round count hidden to avoid "last round" grabs. Run a few rounds silent, then tick <b>Teams may talk this round</b> and see whether communication changes behavior.</p>
+      <p class="muted">Keyboard: <b>Enter</b> moves between team boxes and reveals; <b>Enter</b> again advances.</p>
+      <p class="muted">Progress is saved in this browser, so an accidental refresh won't lose the game.</p>
+    </div>
+  </section>
+
+  <!-- ================= GAME ================= -->
+  <section id="game" class="hidden">
+    <div class="stack">
+      <div class="panel">
+        <div class="round-bar">
+          <span class="round" id="roundLabel">Round 1</span>
+          <span class="badge talk hidden" id="talkBadge">Teams may talk</span>
+          <span class="badge danger hidden" id="dangerBadge">Running low</span>
+        </div>
+        <div class="stock-line">
+          <span class="stock-num" id="stockNum">100</span>
+          <span class="stock-cap" id="stockCap">/ 100 fish in the lake</span>
+          <span class="stock-delta" id="stockDelta"></span>
+        </div>
+        <div id="pond"></div>
+      </div>
+      <div class="panel" id="chart">
+        <h2>Lake over time</h2>
+        <div id="chartSvg"></div>
+        <div class="legend" id="chartLegend"></div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="panel">
+        <h2 id="phaseTitle">How many will each team catch?</h2>
+        <div class="teams" id="teamCards"></div>
+        <label class="checkbox" style="margin-top:.9rem" id="talkWrap"><input id="talk" type="checkbox"> Teams may talk this round</label>
+        <div class="msg" id="msg"></div>
+        <div class="actions">
+          <button class="primary" id="btnMain" disabled>Reveal</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Scoreboard</h2>
+        <table id="score"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= RESULTS ================= -->
+  <section id="results" class="hidden">
+    <div class="panel">
+      <h2 id="resHeadline">Game over</h2>
+      <div class="big" id="resBig"></div>
+      <div class="podium" id="podium"></div>
+      <div class="compare">
+        <div class="panel"><div class="muted">Total caught by the class</div><div class="v" id="cmpTotal">0</div></div>
+        <div class="panel"><div class="muted">Best possible if everyone held back</div><div class="v" id="cmpBest">0</div></div>
+        <div class="panel"><div class="muted">Left in the lake</div><div class="v" id="cmpLeft">0</div></div>
+      </div>
+      <p id="sustainNote" class="muted"></p>
+      <div id="resChart"></div>
+      <h2 style="margin-top:1rem">Discussion</h2>
+      <ul class="discuss">
+        <li>What was each team's strategy? Did it change as the lake shrank?</li>
+        <li>Why was it rational for a single team to take more, even when it hurt everyone?</li>
+        <li>Did being allowed to talk change anything? Did any team break a promise?</li>
+        <li>What rules (quotas, property rights, monitoring, penalties) could have prevented overuse?</li>
+        <li>Where do we see this in the real world? Fisheries, groundwater, carbon emissions, antibiotics...</li>
+      </ul>
+      <div class="actions">
+        <button id="btnBackToGame">Back to the game board</button>
+        <button class="primary" id="btnNew">New game</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE_KEY = "commons-game-v1";
+  var DEFAULT_TEAMS = [
+    { name: "Team 1", color: "#d1495b" },
+    { name: "Team 2", color: "#edae49" },
+    { name: "Team 3", color: "#00798c" },
+    { name: "Team 4", color: "#6a4c93" }
+  ];
+
+  var S = null; // game state
+
+  function $(id) { return document.getElementById(id); }
+  function sum(a) { return a.reduce(function (x, y) { return x + y; }, 0); }
+  function clampInt(v, lo, hi, dflt) {
+    var n = parseInt(v, 10);
+    if (isNaN(n)) return dflt;
+    return Math.max(lo, Math.min(hi, n));
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {}
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  /* ---------- Game math ---------- */
+
+  // Split the available stock in proportion to requests when demand exceeds supply.
+  function allocate(req, stock) {
+    var total = sum(req);
+    if (total <= stock) return req.slice();
+    var raw = req.map(function (r) { return r * stock / total; });
+    var take = raw.map(Math.floor);
+    var left = stock - sum(take);
+    var order = raw.map(function (r, i) { return i; })
+      .sort(function (a, b) { return (raw[b] - take[b]) - (raw[a] - take[a]) || req[b] - req[a]; });
+    for (var k = 0; k < left; k++) take[order[k % order.length]]++;
+    return take;
+  }
+
+  function regrow(remaining, cfg) {
+    if (remaining <= 0) return 0;
+    return Math.min(cfg.capacity, Math.floor(remaining * cfg.growth));
+  }
+
+  // Largest per-round total catch that can be repeated forever from a full lake.
+  function sustainableYield(cfg) {
+    var best = 0, bestKeep = cfg.capacity;
+    for (var keep = 1; keep <= cfg.capacity; keep++) {
+      if (regrow(keep, cfg) >= cfg.capacity) {
+        best = cfg.capacity - keep; bestKeep = keep; break;
+      }
+    }
+    return { perRound: best, keep: bestKeep };
+  }
+
+  // Best total over the game if the class played optimally (simple DP over stock levels).
+  function bestPossible(cfg) {
+    var cap = cfg.capacity, maxTotal = cfg.maxTake * 4;
+    var memo = {};
+    function f(r, stock) {
+      if (r === 0 || stock <= 0) return 0;
+      var key = r + ":" + stock;
+      if (key in memo) return memo[key];
+      var best = 0;
+      var hi = Math.min(stock, maxTotal);
+      for (var t = 0; t <= hi; t++) {
+        var rest = stock - t;
+        var v = t + (r > 1 ? f(r - 1, regrow(rest, cfg)) : 0);
+        if (v > best) best = v;
+      }
+      memo[key] = best;
+      return best;
+    }
+    return f(cfg.rounds, cfg.start);
+  }
+
+  /* ---------- Setup screen ---------- */
+
+  function renderTeamFields(teams) {
+    var html = "";
+    teams.forEach(function (t, i) {
+      html += '<div class="team-row">' +
+        '<input type="color" id="tcolor' + i + '" value="' + esc(t.color) + '" aria-label="Team ' + (i + 1) + ' color">' +
+        '<input type="text" id="tname' + i + '" value="' + esc(t.name) + '" aria-label="Team ' + (i + 1) + ' name">' +
+        "</div>";
+    });
+    $("teamFields").innerHTML = html;
+  }
+
+  function fillSetup(cfg) {
+    $("resName").value = cfg.resName;
+    $("resEmoji").value = cfg.emoji;
+    $("capacity").value = cfg.capacity;
+    $("start").value = cfg.start;
+    $("growth").value = cfg.growth;
+    $("maxTake").value = cfg.maxTake;
+    $("rounds").value = cfg.rounds;
+    $("showRounds").checked = cfg.showRounds;
+    $("maskInputs").checked = cfg.mask;
+    renderTeamFields(cfg.teams);
+    syncResName();
+  }
+
+  function readSetup() {
+    var capacity = clampInt($("capacity").value, 10, 400, 100);
+    var growth = parseFloat($("growth").value);
+    if (isNaN(growth) || growth < 1.1) growth = 2;
+    if (growth > 5) growth = 5;
+    var teams = DEFAULT_TEAMS.map(function (d, i) {
+      var name = ($("tname" + i).value || "").trim() || d.name;
+      return { name: name, color: $("tcolor" + i).value || d.color };
+    });
+    return {
+      resName: ($("resName").value || "").trim() || "fish",
+      emoji: $("resEmoji").value,
+      capacity: capacity,
+      start: clampInt($("start").value, 1, capacity, capacity),
+      growth: Math.round(growth * 10) / 10,
+      maxTake: clampInt($("maxTake").value, 1, capacity, 20),
+      rounds: clampInt($("rounds").value, 1, 30, 8),
+      showRounds: $("showRounds").checked,
+      mask: $("maskInputs").checked,
+      teams: teams
+    };
+  }
+
+  function syncResName() {
+    var n = ($("resName").value || "").trim() || "fish";
+    document.querySelectorAll(".rName").forEach(function (el) { el.textContent = n; });
+  }
+
+  function showScreen(name) {
+    $("setup").classList.toggle("hidden", name !== "setup");
+    $("game").classList.toggle("hidden", name !== "game");
+    $("results").classList.toggle("hidden", name !== "results");
+    $("btnSettings").classList.toggle("hidden", name === "setup");
+    $("btnUndo").classList.toggle("hidden", name === "setup" || !S || !S.history.length);
+  }
+
+  /* ---------- Game screen ---------- */
+
+  function currentRound() {
+    if (S.phase === "entry") return S.history.length + 1;
+    return S.history.length;
+  }
+  function lastRound() { return S.history[S.history.length - 1]; }
+  function teamTotals() {
+    var t = [0, 0, 0, 0];
+    S.history.forEach(function (h) { h.takes.forEach(function (v, i) { t[i] += v; }); });
+    return t;
+  }
+
+  function buildPond() {
+    var cap = S.cfg.capacity;
+    var pond = $("pond");
+    // Pick a column count that keeps the pond roughly 16:10.
+    var cols = Math.max(5, Math.ceil(Math.sqrt(cap * 1.6)));
+    pond.style.gridTemplateColumns = "repeat(" + cols + ", 1fr)";
+    pond.style.setProperty("--fs", "calc(100cqw / " + cols + " * 0.68)");
+    var html = "";
+    for (var i = 0; i < cap; i++) html += '<div class="cell"><span class="e">' + S.cfg.emoji + "</span></div>";
+    pond.innerHTML = html;
+  }
+
+  // mode: "plain" shows stock; "caught" colors fish taken this round; "grown" pops new fish.
+  function paintPond(mode) {
+    var cells = $("pond").children;
+    var h = lastRound();
+    var i;
+    for (i = 0; i < cells.length; i++) {
+      cells[i].className = "cell";
+      cells[i].style.backgroundColor = "";
+    }
+    if (mode === "caught" && h) {
+      var idx = h.stockBefore - 1;
+      // Fill alive fish first, then mark caught fish from the top down by team.
+      for (i = 0; i < cells.length; i++) if (i >= h.stockBefore) cells[i].classList.add("empty");
+      h.takes.forEach(function (n, t) {
+        for (var k = 0; k < n; k++, idx--) {
+          if (idx < 0) break;
+          cells[idx].classList.add("caught");
+          cells[idx].style.backgroundColor = S.cfg.teams[t].color;
+        }
+      });
+    } else if (mode === "grown" && h) {
+      for (i = 0; i < cells.length; i++) {
+        if (i >= h.afterGrowth) cells[i].classList.add("empty");
+        else if (i >= h.afterHarvest) {
+          cells[i].classList.add("newborn");
+          cells[i].style.animationDelay = "0s";
+          cells[i].firstChild.style.animationDelay = ((i - h.afterHarvest) * 18) + "ms";
+        }
+      }
+    } else {
+      for (i = 0; i < cells.length; i++) if (i >= S.stock) cells[i].classList.add("empty");
+    }
+  }
+
+  function renderStock(delta) {
+    $("stockNum").textContent = S.stock;
+    $("stockCap").textContent = "/ " + S.cfg.capacity + " " + S.cfg.resName + " in the lake";
+    var d = $("stockDelta");
+    if (delta) {
+      d.textContent = (delta > 0 ? "+" : "−") + Math.abs(delta);
+      d.className = "stock-delta " + (delta > 0 ? "up" : "down");
+    } else {
+      d.textContent = "";
+      d.className = "stock-delta";
+    }
+    var low = S.stock > 0 && S.stock < S.cfg.capacity * 0.3;
+    $("dangerBadge").classList.toggle("hidden", !low);
+  }
+
+  function renderRoundLabel() {
+    var r = Math.min(currentRound() || 1, S.cfg.rounds);
+    $("roundLabel").textContent = "Round " + r + (S.cfg.showRounds ? " of " + S.cfg.rounds : "");
+    var talk = S.phase === "entry" ? $("talk").checked : (lastRound() && lastRound().talk);
+    $("talkBadge").classList.toggle("hidden", !talk);
+  }
+
+  function renderTeamCards() {
+    var totals = teamTotals();
+    var h = lastRound();
+    var html = "";
+    S.cfg.teams.forEach(function (t, i) {
+      html += '<div class="team-card" id="card' + i + '" style="border-left-color:' + esc(t.color) + '">' +
+        '<div class="name">' + esc(t.name) + "</div>" +
+        '<div class="total">Total caught: <b id="tot' + i + '">' + totals[i] + "</b></div>";
+      if (S.phase === "entry") {
+        html += '<input id="in' + i + '" type="text" inputmode="numeric" autocomplete="off" ' +
+          'placeholder="0–' + S.cfg.maxTake + '" value="' + esc(S.pending[i]) + '">';
+      } else {
+        html += '<div class="took" id="took' + i + '">' + (h ? h.takes[i] : "") + "</div>" +
+          '<div class="note" id="note' + i + '">' +
+          (h && h.takes[i] !== h.requests[i] ? "asked for " + h.requests[i] : "") + "</div>";
+      }
+      html += "</div>";
+    });
+    var wrap = $("teamCards");
+    wrap.innerHTML = html;
+    wrap.classList.toggle("masked", S.cfg.mask);
+    if (S.phase === "entry") {
+      S.cfg.teams.forEach(function (t, i) {
+        var el = $("in" + i);
+        el.addEventListener("input", function () {
+          S.pending[i] = el.value.replace(/[^0-9]/g, "");
+          if (el.value !== S.pending[i]) el.value = S.pending[i];
+          validateEntry();
+          save();
+        });
+        el.addEventListener("keydown", function (e) {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          if (i < 3) $("in" + (i + 1)).focus();
+          else if (!$("btnMain").disabled) doMain();
+        });
+      });
+    }
+  }
+
+  function validateEntry() {
+    var ok = true;
+    S.pending.forEach(function (v, i) {
+      var el = $("in" + i);
+      var n = parseInt(v, 10);
+      var bad = v !== "" && (isNaN(n) || n < 0 || n > S.cfg.maxTake);
+      if (el) el.classList.toggle("invalid", bad);
+      if (v === "" || bad) ok = false;
+    });
+    $("btnMain").disabled = !ok;
+    var filled = S.pending.filter(function (v) { return v !== ""; }).length;
+    $("msg").textContent = ok ? "All four teams are in. Press Reveal." :
+      filled + " of 4 teams entered. Each team can catch 0 to " + S.cfg.maxTake + ".";
+    $("msg").style.color = "";
+    return ok;
+  }
+
+  function renderPhase() {
+    var btn = $("btnMain");
+    $("talkWrap").classList.toggle("hidden", S.phase !== "entry");
+    if (S.phase === "entry") {
+      $("phaseTitle").textContent = "How many will each team catch?";
+      btn.textContent = "Reveal";
+      validateEntry();
+    } else if (S.phase === "revealed") {
+      var h = lastRound();
+      $("phaseTitle").textContent = "This round's catch";
+      btn.disabled = false;
+      if (h.afterHarvest <= 0) {
+        btn.textContent = "See results";
+      } else {
+        btn.textContent = "Regrow " + S.cfg.resName;
+      }
+    } else if (S.phase === "grown") {
+      $("phaseTitle").textContent = "This round's catch";
+      btn.disabled = false;
+      btn.textContent = S.history.length >= S.cfg.rounds ? "See results" : "Start round " + (S.history.length + 1);
+    }
+  }
+
+  function revealMessage(h) {
+    var total = sum(h.takes), asked = sum(h.requests);
+    var m = "Class caught " + total + ". ";
+    if (asked > h.stockBefore) m += "Demand (" + asked + ") was more than the lake held, so the catch was split. ";
+    if (h.afterHarvest <= 0) m += "The lake is empty. It has collapsed.";
+    else m += h.afterHarvest + " " + S.cfg.resName + " left in the lake.";
+    return m;
+  }
+
+  function growMessage(h) {
+    var born = h.afterGrowth - h.afterHarvest;
+    var m = born > 0 ? born + " new " + S.cfg.resName + " grew. " : "The lake is already full. ";
+    m += "The lake now has " + h.afterGrowth + ".";
+    return m;
+  }
+
+  function renderScore() {
+    var totals = teamTotals();
+    var rows = S.history.length;
+    var html = "<thead><tr><th>Team</th>";
+    for (var r = 0; r < rows; r++) html += "<th>R" + (r + 1) + "</th>";
+    html += "<th>Total</th></tr></thead><tbody>";
+    S.cfg.teams.forEach(function (t, i) {
+      html += '<tr><td><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + "</td>";
+      S.history.forEach(function (h) {
+        html += "<td>" + h.takes[i] + "</td>";
+      });
+      html += "<td><b>" + totals[i] + "</b></td></tr>";
+    });
+    html += '<tr><td class="muted">Lake after regrowth</td>';
+    S.history.forEach(function (h) {
+      html += '<td class="muted">' + (h.grown ? h.afterGrowth : "…") + "</td>";
+    });
+    html += "<td></td></tr></tbody>";
+    $("score").innerHTML = html;
+  }
+
+  /* ---------- Chart (inline SVG, no libraries) ---------- */
+
+  function chartSvg(target) {
+    var cfg = S.cfg, hist = S.history;
+    var W = 640, H = 260, L = 44, R = 12, T = 14, B = 34;
+    var n = Math.max(cfg.rounds, hist.length);
+    var cw = (W - L - R) / n;
+    var y = function (v) { return T + (H - T - B) * (1 - v / cfg.capacity); };
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Lake level and catch per round">';
+    // grid
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (f) {
+      var v = Math.round(cfg.capacity * f);
+      s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#d7dee4" stroke-width="1"/>';
+      s += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" font-size="12" text-anchor="end" fill="#5b6b78">' + v + "</text>";
+    });
+    // stacked catch bars
+    hist.forEach(function (h, r) {
+      var x = L + r * cw + cw * 0.22, w = cw * 0.56, base = y(0);
+      h.takes.forEach(function (v, i) {
+        if (!v) return;
+        var top = y(v) - y(0); // negative height
+        s += '<rect x="' + x + '" y="' + (base + top) + '" width="' + w + '" height="' + (-top) + '" fill="' + esc(cfg.teams[i].color) + '" opacity=".85"/>';
+        base += top;
+      });
+    });
+    // lake level line: start-of-round stock for each round, plus final level
+    var pts = [];
+    hist.forEach(function (h, r) { pts.push([L + r * cw + cw / 2, y(h.stockBefore)]); });
+    var lh = lastRound();
+    if (lh && lh.grown && hist.length < n) pts.push([L + hist.length * cw + cw / 2, y(lh.afterGrowth)]);
+    if (!hist.length) pts.push([L + cw / 2, y(S.stock)]);
+    if (pts.length > 1) {
+      s += '<polyline fill="none" stroke="#0b6e99" stroke-width="3" points="' +
+        pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>';
+    }
+    pts.forEach(function (p) {
+      s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="#0b6e99"/>';
+    });
+    for (var r = 0; r < n; r++) {
+      s += '<text x="' + (L + r * cw + cw / 2) + '" y="' + (H - 12) + '" font-size="12" text-anchor="middle" fill="#5b6b78">R' + (r + 1) + "</text>";
+    }
+    s += "</svg>";
+    $(target).innerHTML = s;
+  }
+
+  function renderLegend() {
+    var html = '<span><span class="swatch" style="background:#0b6e99"></span>Lake at start of round</span>';
+    S.cfg.teams.forEach(function (t) {
+      html += '<span><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + " catch</span>";
+    });
+    $("chartLegend").innerHTML = html;
+  }
+
+  /* ---------- Flow ---------- */
+
+  function renderAll(pondMode, delta) {
+    $("title").textContent = "Tragedy of the Commons: " + S.cfg.emoji + " " + S.cfg.resName;
+    renderRoundLabel();
+    renderStock(delta);
+    renderTeamCards();
+    renderPhase();
+    renderScore();
+    chartSvg("chartSvg");
+    renderLegend();
+    paintPond(pondMode);
+    $("btnUndo").classList.toggle("hidden", !S.history.length);
+  }
+
+  function startGame(cfg) {
+    S = { cfg: cfg, stock: cfg.start, history: [], phase: "entry", pending: ["", "", "", ""], over: false };
+    $("talk").checked = false;
+    save();
+    showScreen("game");
+    buildPond();
+    renderAll("plain");
+    focusFirst();
+  }
+
+  function focusFirst() {
+    var el = $("in0");
+    if (el) el.focus();
+  }
+
+  function doReveal() {
+    if (!validateEntry()) return;
+    var req = S.pending.map(function (v) { return parseInt(v, 10); });
+    var takes = allocate(req, S.stock);
+    var h = {
+      stockBefore: S.stock,
+      requests: req,
+      takes: takes,
+      afterHarvest: S.stock - sum(takes),
+      afterGrowth: null,
+      grown: false,
+      talk: $("talk").checked
+    };
+    S.history.push(h);
+    S.stock = h.afterHarvest;
+    S.phase = "revealed";
+    S.pending = ["", "", "", ""];
+    save();
+
+    renderAll("caught", -sum(takes));
+    // Dramatic one-by-one reveal.
+    var btn = $("btnMain");
+    btn.disabled = true;
+    S.cfg.teams.forEach(function (t, i) {
+      $("took" + i).style.visibility = "hidden";
+      $("note" + i).style.visibility = "hidden";
+      $("tot" + i).style.visibility = "hidden";
+    });
+    $("msg").textContent = "";
+    var i = 0;
+    var timer = setInterval(function () {
+      if (i < 4) {
+        var card = $("card" + i);
+        $("took" + i).style.visibility = "";
+        $("note" + i).style.visibility = "";
+        $("tot" + i).style.visibility = "";
+        card.classList.add("flip");
+        i++;
+      } else {
+        clearInterval(timer);
+        $("msg").textContent = revealMessage(h);
+        $("msg").style.color = h.afterHarvest <= 0 ? "var(--bad)" : "";
+        btn.disabled = false;
+        btn.focus();
+      }
+    }, 650);
+  }
+
+  function doGrow() {
+    var h = lastRound();
+    h.afterGrowth = regrow(h.afterHarvest, S.cfg);
+    h.grown = true;
+    S.stock = h.afterGrowth;
+    S.phase = "grown";
+    save();
+    renderAll("grown", h.afterGrowth - h.afterHarvest);
+    $("msg").textContent = growMessage(h);
+    $("msg").style.color = "var(--good)";
+    $("btnMain").focus();
+  }
+
+  function nextRound() {
+    S.phase = "entry";
+    $("talk").checked = !!(lastRound() && lastRound().talk);
+    save();
+    renderAll("plain");
+    focusFirst();
+  }
+
+  function finish() {
+    var h = lastRound();
+    if (h && !h.grown) {
+      // Collapsed: nothing regrows.
+      h.afterGrowth = 0;
+      h.grown = true;
+      S.stock = 0;
+    }
+    S.over = true;
+    save();
+    renderResults();
+    showScreen("results");
+  }
+
+  function doMain() {
+    if (S.phase === "entry") doReveal();
+    else if (S.phase === "revealed") {
+      if (lastRound().afterHarvest <= 0) finish();
+      else doGrow();
+    } else if (S.phase === "grown") {
+      if (S.history.length >= S.cfg.rounds) finish();
+      else nextRound();
+    }
+  }
+
+  function undo() {
+    if (!S.history.length) return;
+    if (!confirm("Undo round " + S.history.length + "? The numbers entered for that round will be restored for editing.")) return;
+    var h = S.history.pop();
+    S.stock = h.stockBefore;
+    S.pending = h.requests.map(String);
+    S.phase = "entry";
+    S.over = false;
+    $("talk").checked = h.talk;
+    save();
+    showScreen("game");
+    renderAll("plain");
+    validateEntry();
+    focusFirst();
+  }
+
+  /* ---------- Results ---------- */
+
+  function renderResults() {
+    var cfg = S.cfg;
+    var totals = teamTotals();
+    var classTotal = sum(totals);
+    var collapsed = S.stock <= 0;
+    var played = S.history.length;
+
+    $("resHeadline").textContent = collapsed ? "The lake collapsed in round " + played : "Game over after " + played + " rounds";
+    $("resBig").textContent = collapsed
+      ? "Everyone loses access to the " + cfg.resName + " from now on."
+      : S.stock + " " + cfg.resName + " remain for the future.";
+
+    var order = [0, 1, 2, 3].sort(function (a, b) { return totals[b] - totals[a]; });
+    var html = "";
+    order.forEach(function (i, rank) {
+      var t = cfg.teams[i];
+      html += '<div class="team-card" style="border-left-color:' + esc(t.color) + '">' +
+        '<div class="muted">#' + (rank + 1) + "</div>" +
+        '<div class="name">' + esc(t.name) + "</div>" +
+        '<div class="took">' + totals[i] + "</div></div>";
+    });
+    $("podium").innerHTML = html;
+
+    var best = bestPossible(cfg);
+    $("cmpTotal").textContent = classTotal;
+    $("cmpBest").textContent = best;
+    $("cmpLeft").textContent = S.stock;
+
+    var sy = sustainableYield(cfg);
+    $("sustainNote").textContent =
+      "Sustainable strategy: keep at least " + sy.keep + " " + cfg.resName + " in the lake after each harvest. " +
+      "From a full lake that allows about " + sy.perRound + " per round in total, or about " +
+      Math.floor(sy.perRound / 4) + " per team, forever. " +
+      "“Best possible” is the most the class could have caught in " + cfg.rounds +
+      " rounds with perfect cooperation, given the " + cfg.maxTake + "-per-team limit.";
+
+    chartSvg("resChart");
+  }
+
+  /* ---------- Wiring ---------- */
+
+  $("btnMain").addEventListener("click", doMain);
+  $("btnStart").addEventListener("click", function () {
+    if (S && S.history.length && !S.over &&
+        !confirm("Start a new game? The current game will be erased.")) return;
+    startGame(readSetup());
+  });
+  $("btnResume").addEventListener("click", function () {
+    showScreen(S.over ? "results" : "game");
+    buildPond();
+    renderAll(S.phase === "revealed" ? "caught" : "plain");
+    if (S.phase === "revealed") $("msg").textContent = revealMessage(lastRound());
+    if (S.phase === "grown") $("msg").textContent = growMessage(lastRound());
+    if (S.over) renderResults();
+    focusFirst();
+  });
+  $("btnSettings").addEventListener("click", function () {
+    if (S) fillSetup(S.cfg);
+    $("btnResume").classList.toggle("hidden", !S);
+    showScreen("setup");
+  });
+  $("btnUndo").addEventListener("click", undo);
+  $("btnBackToGame").addEventListener("click", function () {
+    showScreen("game");
+    buildPond();
+    renderAll("plain");
+    $("btnMain").disabled = true;
+    $("btnMain").textContent = "Game over";
+    $("msg").textContent = "Game over. Use Undo round or start a new game.";
+  });
+  $("btnNew").addEventListener("click", function () {
+    fillSetup(S.cfg);
+    $("btnResume").classList.add("hidden");
+    showScreen("setup");
+  });
+  $("talk").addEventListener("change", function () { renderRoundLabel(); });
+  $("resName").addEventListener("input", syncResName);
+  $("btnFull").addEventListener("click", function () {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || $("game").classList.contains("hidden")) return;
+    if (S.phase === "entry") return; // handled by inputs
+    var tag = (document.activeElement && document.activeElement.tagName) || "";
+    if (tag === "BUTTON" || tag === "INPUT") return;
+    if (!$("btnMain").disabled) doMain();
+  });
+
+  /* ---------- Boot ---------- */
+
+  var saved = load();
+  if (saved && saved.cfg && saved.history) {
+    S = saved;
+    fillSetup(S.cfg);
+    $("btnResume").classList.remove("hidden");
+  } else {
+    fillSetup({
+      resName: "fish", emoji: "🐟", capacity: 100, start: 100, growth: 2,
+      maxTake: 20, rounds: 8, showRounds: false, mask: true,
+      teams: DEFAULT_TEAMS
+    });
+  }
+  showScreen("setup");
+})();
+</script>
+</body>
+</html>

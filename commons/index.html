@@ -188,6 +188,16 @@
   .compare .panel { text-align: center; }
   .compare .v { font-size: 2.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
   #resChart { max-width: 900px; }
+  #cmpTable td, #cmpTable th { vertical-align: middle; }
+  #cmpTable input.label {
+    width: 100%; min-width: 7em; padding: .3em .5em; border: 1px solid var(--line); border-radius: 8px; font-weight: 600;
+  }
+  #cmpTable .game-name { display: flex; align-items: center; gap: .4rem; }
+  #cmpTable .game-name .swatch { flex: none; margin: 0; width: 1em; height: 1em; }
+  #cmpTable .when { font-size: .75em; color: var(--muted); }
+  .chips { display: flex; gap: .3rem; flex-wrap: wrap; justify-content: flex-end; }
+  .table-wrap { overflow-x: auto; }
+  #cmpChart { max-width: 1000px; }
   .discuss li { margin-bottom: .5rem; font-size: 1.1rem; }
 
   @media (max-width: 900px) {
@@ -208,6 +218,7 @@
   <div class="tools">
     <button class="small hidden" id="btnUndo" title="Undo the last revealed round">Undo round</button>
     <button class="small hidden" id="btnSettings">Settings / new game</button>
+    <button class="small hidden" id="btnCompare">Compare games</button>
     <button class="small" id="btnFull">Full screen</button>
   </div>
 </header>
@@ -358,12 +369,32 @@
         <li>What was each team's strategy? Did it change as the lake shrank?</li>
         <li>Why was it rational for a single team to take more, even when it hurt everyone?</li>
         <li>Did being allowed to talk change anything? Did any team break a promise?</li>
+        <li>Compare games: which changes (talking, rules, fines, monitoring) made the biggest difference?</li>
         <li>What rules (quotas, property rights, monitoring, penalties) could have prevented overuse?</li>
         <li>Where do we see this in the real world? Fisheries, groundwater, carbon emissions, antibiotics...</li>
       </ul>
       <div class="actions">
         <button id="btnBackToGame">Back to the game board</button>
+        <button id="btnResCompare">Compare games</button>
         <button class="primary" id="btnNew">New game</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= COMPARE ================= -->
+  <section id="compare" class="hidden">
+    <div class="panel">
+      <h2>Compare games</h2>
+      <p class="muted">Every finished game is saved here automatically. Rename them to match what you changed (for example "No talk", "Talk", "Own rules").</p>
+      <p id="cmpEmpty" class="hidden">No finished games yet. Play a game to the end and it will appear here.</p>
+      <div class="table-wrap"><table id="cmpTable"></table></div>
+      <h2 style="margin-top:1.2rem">Lake level by game</h2>
+      <div id="cmpChart"></div>
+      <div class="legend" id="cmpLegend"></div>
+      <p class="muted" style="font-size:.85rem">Each point is the lake at the start of a round. The last point of each line is the lake after that game's final round.</p>
+      <div class="actions">
+        <button class="primary" id="btnCmpBack">Back</button>
+        <button id="btnCmpClear">Delete all saved games</button>
       </div>
     </div>
   </section>
@@ -399,6 +430,65 @@
 
   function save() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {}
+    if (S && S.over) archiveCurrent();
+  }
+
+  /* ---------- Saved games for comparison ---------- */
+
+  var ARCHIVE_KEY = "commons-archive-v1";
+  var GAME_COLORS = ["#0b6e99", "#c2410c", "#15803d", "#7c3aed", "#be185d", "#475569", "#b45309", "#0f766e"];
+  var GAME_DASHES = ["", "8 5", "2 4", "12 4 2 4"];
+
+  function loadArchive() {
+    try {
+      var a = JSON.parse(localStorage.getItem(ARCHIVE_KEY));
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+  function saveArchive(a) {
+    try { localStorage.setItem(ARCHIVE_KEY, JSON.stringify(a)); } catch (e) {}
+  }
+
+  function summarize() {
+    var levels = S.history.map(function (h) { return h.stockBefore; });
+    var lh = lastRound();
+    if (lh) levels.push(lh.afterGrowth || 0);
+    return {
+      id: S.id,
+      endedAt: Date.now(),
+      resName: S.cfg.resName,
+      capacity: S.cfg.capacity,
+      played: S.history.length,
+      collapsed: S.stock <= 0,
+      left: S.stock,
+      levels: levels,
+      classTotal: sum(teamTotals()),
+      best: S.best,
+      fineTotal: sum(teamFines()),
+      fineCount: S.fines.length,
+      talkRounds: S.history.filter(function (h) { return h.talk; }).length,
+      anonRounds: S.history.filter(function (h) { return h.anon; }).length
+    };
+  }
+
+  // Insert or update the finished current game in the archive, keeping its label.
+  function archiveCurrent() {
+    if (!S.id) S.id = "g" + Date.now();
+    if (S.best == null) S.best = bestPossible(S.cfg);
+    var a = loadArchive();
+    var g = summarize();
+    var idx = -1;
+    a.forEach(function (x, k) { if (x.id === S.id) idx = k; });
+    if (idx >= 0) {
+      g.label = a[idx].label;
+      g.endedAt = a[idx].endedAt;
+      a[idx] = g;
+    } else {
+      g.label = "Game " + (a.length + 1);
+      a.push(g);
+    }
+    saveArchive(a);
+    $("btnCompare").classList.remove("hidden");
   }
   function load() {
     try {
@@ -520,8 +610,11 @@
     $("setup").classList.toggle("hidden", name !== "setup");
     $("game").classList.toggle("hidden", name !== "game");
     $("results").classList.toggle("hidden", name !== "results");
+    $("compare").classList.toggle("hidden", name !== "compare");
+    if (name !== "compare") currentScreen = name;
+    $("btnCompare").classList.toggle("hidden", name === "compare" || !loadArchive().length);
     $("btnSettings").classList.toggle("hidden", name === "setup");
-    $("btnUndo").classList.toggle("hidden", name === "setup" || !S || !S.history.length);
+    $("btnUndo").classList.toggle("hidden", name === "setup" || name === "compare" || !S || !S.history.length);
   }
 
   /* ---------- Game screen ---------- */
@@ -867,7 +960,7 @@
   }
 
   function startGame(cfg) {
-    S = { cfg: cfg, stock: cfg.start, history: [], fines: [], phase: "entry", pending: ["", "", "", ""], over: false };
+    S = { id: "g" + Date.now(), cfg: cfg, stock: cfg.start, history: [], fines: [], phase: "entry", pending: ["", "", "", ""], over: false };
     $("talk").checked = false;
     save();
     showScreen("game");
@@ -976,6 +1069,7 @@
       S.stock = 0;
     }
     S.over = true;
+    S.best = bestPossible(S.cfg);
     save();
     renderResults();
     showScreen("results");
@@ -1038,7 +1132,7 @@
     var wasAnon = S.history.some(function (h) { return h.anon; });
     $("anonReveal").classList.toggle("hidden", !wasAnon);
 
-    var best = bestPossible(cfg);
+    var best = S.best != null ? S.best : bestPossible(cfg);
     $("cmpTotal").textContent = classTotal;
     $("cmpBest").textContent = best;
     $("cmpLeft").textContent = S.stock;
@@ -1122,12 +1216,121 @@
     if (!$("btnMain").disabled) doMain();
   });
 
+  /* ---------- Compare screen ---------- */
+
+  var currentScreen = "setup";
+
+  function chip(text, cls) { return '<span class="badge ' + (cls || "") + '">' + esc(text) + "</span>"; }
+
+  function renderCompare() {
+    var a = loadArchive();
+    $("cmpEmpty").classList.toggle("hidden", a.length > 0);
+    $("cmpTable").classList.toggle("hidden", !a.length);
+    var html = "<thead><tr><th>Game</th><th>Conditions</th><th>Rounds</th><th>Outcome</th>" +
+      "<th>Class catch</th><th>Best possible</th><th>% of best</th><th>Fines</th><th></th></tr></thead><tbody>";
+    a.forEach(function (g, k) {
+      var conds = "";
+      conds += g.talkRounds ? chip("Talk: " + g.talkRounds + " rd", "talk") : chip("Silent");
+      if (g.anonRounds) conds += chip("Anonymous: " + g.anonRounds + " rd", "anon");
+      if (g.fineCount) conds += chip("Fines: " + g.fineCount, "danger");
+      var pct = g.best > 0 ? Math.round(100 * g.classTotal / g.best) + "%" : "n/a";
+      var when = new Date(g.endedAt);
+      html += "<tr>" +
+        '<td><div class="game-name"><span class="swatch" style="background:' + GAME_COLORS[k % GAME_COLORS.length] + '"></span>' +
+        '<input class="label" data-k="' + k + '" value="' + esc(g.label) + '" aria-label="Game name"></div>' +
+        '<div class="when">' + esc(when.toLocaleDateString() + " " + when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })) + "</div></td>" +
+        '<td><div class="chips">' + conds + "</div></td>" +
+        "<td>" + g.played + "</td>" +
+        "<td>" + (g.collapsed ? '<span style="color:var(--bad);font-weight:600">Collapsed R' + g.played + "</span>"
+          : g.left + " left") + "</td>" +
+        "<td><b>" + g.classTotal + "</b></td>" +
+        "<td>" + g.best + "</td>" +
+        "<td><b>" + pct + "</b></td>" +
+        '<td class="fine">' + (g.fineTotal ? "−" + g.fineTotal : "") + "</td>" +
+        '<td><button class="small" data-del="' + k + '" aria-label="Delete this game">Delete</button></td>' +
+        "</tr>";
+    });
+    html += "</tbody>";
+    $("cmpTable").innerHTML = html;
+    renderCompareChart(a);
+  }
+
+  function renderCompareChart(a) {
+    if (!a.length) { $("cmpChart").innerHTML = ""; $("cmpLegend").innerHTML = ""; return; }
+    var W = 760, H = 300, L = 44, R = 16, T = 14, B = 34;
+    var maxX = 1, maxY = 1;
+    a.forEach(function (g) {
+      maxX = Math.max(maxX, g.levels.length - 1);
+      maxY = Math.max(maxY, g.capacity);
+    });
+    var x = function (k) { return L + (W - L - R) * k / maxX; };
+    var y = function (v) { return T + (H - T - B) * (1 - v / maxY); };
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Lake level by game">';
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (f) {
+      var v = Math.round(maxY * f);
+      s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#d7dee4"/>';
+      s += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" font-size="12" text-anchor="end" fill="#5b6b78">' + v + "</text>";
+    });
+    for (var k = 0; k <= maxX; k++) {
+      s += '<text x="' + x(k) + '" y="' + (H - 12) + '" font-size="12" text-anchor="middle" fill="#5b6b78">R' + (k + 1) + "</text>";
+    }
+    var legend = "";
+    a.forEach(function (g, i) {
+      var c = GAME_COLORS[i % GAME_COLORS.length], d = GAME_DASHES[i % GAME_DASHES.length];
+      var pts = g.levels.map(function (v, k) { return x(k).toFixed(1) + "," + y(v).toFixed(1); });
+      s += '<polyline fill="none" stroke="' + c + '" stroke-width="3"' + (d ? ' stroke-dasharray="' + d + '"' : "") +
+        ' points="' + pts.join(" ") + '"/>';
+      g.levels.forEach(function (v, k) {
+        s += '<circle cx="' + x(k).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="4" fill="' + c + '"/>';
+      });
+      legend += '<span><span class="swatch" style="background:' + c + '"></span>' + esc(g.label) + "</span>";
+    });
+    s += "</svg>";
+    $("cmpChart").innerHTML = s;
+    $("cmpLegend").innerHTML = legend;
+  }
+
+  function openCompare() {
+    renderCompare();
+    showScreen("compare");
+  }
+
+  $("btnCompare").addEventListener("click", openCompare);
+  $("btnResCompare").addEventListener("click", openCompare);
+  $("btnCmpBack").addEventListener("click", function () {
+    showScreen(currentScreen);
+  });
+  $("btnCmpClear").addEventListener("click", function () {
+    if (!confirm("Delete all saved games from the comparison? This can't be undone.")) return;
+    saveArchive([]);
+    renderCompare();
+  });
+  $("cmpTable").addEventListener("input", function (e) {
+    var k = e.target.getAttribute("data-k");
+    if (k === null) return;
+    var a = loadArchive();
+    if (!a[+k]) return;
+    a[+k].label = e.target.value.trim() || "Game " + (+k + 1);
+    saveArchive(a);
+    renderCompareChart(a);
+  });
+  $("cmpTable").addEventListener("click", function (e) {
+    var k = e.target.getAttribute && e.target.getAttribute("data-del");
+    if (k === null) return;
+    var a = loadArchive();
+    if (!a[+k] || !confirm("Delete \u201c" + a[+k].label + "\u201d from the comparison?")) return;
+    a.splice(+k, 1);
+    saveArchive(a);
+    renderCompare();
+  });
+
   /* ---------- Boot ---------- */
 
   var saved = load();
   if (saved && saved.cfg && saved.history) {
     S = saved;
     if (!S.fines) S.fines = [];
+    if (!S.id) S.id = "g" + Date.now();
     fillSetup(S.cfg);
     $("btnResume").classList.remove("hidden");
   } else {

@@ -184,6 +184,8 @@
   .podium { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin: 1rem 0; }
   .podium .team-card { text-align: center; }
   .podium .team-card .took { font-size: 2.4rem; }
+  .podium.no-winner .team-card { opacity: .55; border-style: dashed dashed dashed solid; }
+  #resBig.no-winner { color: var(--bad); }
   .compare { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin: 1rem 0; }
   .compare .panel { text-align: center; }
   .compare .v { font-size: 2.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -288,7 +290,7 @@
         <li>Each round, every team secretly writes down how many <span class="rName">fish</span> it wants to catch (0 to the max). Collect the slips and type the numbers in.</li>
         <li>Press <b>Reveal</b>. Each team gets what it asked for. If the lake can't cover every request, the catch is split in proportion to what each team asked for.</li>
         <li>Press <b>Regrow</b>. Whatever is left in the lake multiplies, up to its capacity.</li>
-        <li>If the lake hits zero it collapses and the game ends early.</li>
+        <li>If the lake hits zero before the last round, it collapses, the game ends early, and <b>no one wins</b>.</li>
         <li>Score = total <span class="rName">fish</span> caught by your team, minus any fines.</li>
       </ol>
       <p class="muted">Instructor tips: keep the round count hidden to avoid "last round" grabs. Run a few rounds silent, then tick <b>Teams may talk this round</b> and see whether communication changes behavior.</p>
@@ -460,6 +462,7 @@
       capacity: S.cfg.capacity,
       played: S.history.length,
       collapsed: S.stock <= 0,
+      noWinner: S.stock <= 0 && S.history.length < S.cfg.rounds,
       left: S.stock,
       levels: levels,
       classTotal: sum(teamTotals()),
@@ -801,7 +804,10 @@
     var total = sum(h.takes), asked = sum(h.requests);
     var m = "Class caught " + total + ". ";
     if (asked > h.stockBefore) m += "Demand (" + asked + ") was more than the lake held, so the catch was split. ";
-    if (h.afterHarvest <= 0) m += "The lake is empty. It has collapsed.";
+    if (h.afterHarvest <= 0) {
+      m += "The lake is empty. It has collapsed.";
+      if (S.history.length < S.cfg.rounds) m += " No one wins.";
+    }
     else m += h.afterHarvest + " " + S.cfg.resName + " left in the lake.";
     return m;
   }
@@ -1111,18 +1117,24 @@
     var classTotal = sum(totals);
     var collapsed = S.stock <= 0;
     var played = S.history.length;
+    // The game only has a winner if the lake survives every scheduled round.
+    var noWinner = collapsed && played < cfg.rounds;
 
     $("resHeadline").textContent = collapsed ? "The lake collapsed in round " + played : "Game over after " + played + " rounds";
-    $("resBig").textContent = collapsed
-      ? "Everyone loses access to the " + cfg.resName + " from now on."
-      : S.stock + " " + cfg.resName + " remain for the future.";
+    $("resBig").textContent = noWinner
+      ? "No one wins. The lake didn't last all " + cfg.rounds + " rounds."
+      : collapsed
+        ? "Everyone loses access to the " + cfg.resName + " from now on."
+        : S.stock + " " + cfg.resName + " remain for the future.";
+    $("resBig").classList.toggle("no-winner", noWinner);
+    $("podium").classList.toggle("no-winner", noWinner);
 
     var order = [0, 1, 2, 3].sort(function (a, b) { return scores[b] - scores[a]; });
     var html = "";
     order.forEach(function (i, rank) {
       var t = cfg.teams[i];
       html += '<div class="team-card" style="border-left-color:' + esc(t.color) + '">' +
-        '<div class="muted">#' + (rank + 1) + "</div>" +
+        '<div class="muted">' + (noWinner ? "No winner" : "#" + (rank + 1)) + "</div>" +
         '<div class="name">' + esc(t.name) + "</div>" +
         '<div class="took">' + scores[i] + "</div>" +
         '<div class="muted">' + (fines[i] ? "caught " + totals[i] + ", fined " + fines[i] : "caught " + totals[i]) +
@@ -1241,7 +1253,8 @@
         '<div class="when">' + esc(when.toLocaleDateString() + " " + when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })) + "</div></td>" +
         '<td><div class="chips">' + conds + "</div></td>" +
         "<td>" + g.played + "</td>" +
-        "<td>" + (g.collapsed ? '<span style="color:var(--bad);font-weight:600">Collapsed R' + g.played + "</span>"
+        "<td>" + (g.collapsed ? '<span style="color:var(--bad);font-weight:600">Collapsed R' + g.played +
+          (g.noWinner ? ", no winner" : "") + "</span>"
           : g.left + " left") + "</td>" +
         "<td><b>" + g.classTotal + "</b></td>" +
         "<td>" + g.best + "</td>" +

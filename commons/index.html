@@ -253,6 +253,18 @@
           <small>Where the resource lives, such as lake, forest or pasture.</small>
         </div>
         <div class="field">
+          <label for="resVerb">Harvest word</label>
+          <select id="resVerb">
+            <option value="catch">catch / caught</option>
+            <option value="cut">cut / cut</option>
+            <option value="hunt">hunt / hunted</option>
+            <option value="take">take / took</option>
+            <option value="draw">draw / drew</option>
+            <option value="harvest">harvest / harvested</option>
+          </select>
+          <small>Used in messages, such as "Class <span class="vPast">caught</span> 40".</small>
+        </div>
+        <div class="field">
           <label for="capacity">Capacity</label>
           <input id="capacity" type="number" min="10" max="400" value="100">
           <small>Most the <span class="rPlace">lake</span> can ever hold.</small>
@@ -277,7 +289,7 @@
       </div>
       <label class="checkbox"><input id="showRounds" type="checkbox"> Show students how many rounds there are</label>
       <label class="checkbox"><input id="maskInputs" type="checkbox" checked> Hide numbers while typing them in</label>
-      <label class="checkbox"><input id="anonymous" type="checkbox"> Anonymous mode: show only the class total, not each team's catch</label>
+      <label class="checkbox"><input id="anonymous" type="checkbox"> Anonymous mode: show only the class total, not each team's <span class="vNoun">catch</span></label>
       <label class="checkbox"><input id="noWinnerRule" type="checkbox" checked> No winner if the <span class="rPlace">lake</span> collapses before the last round</label>
 
       <h2 style="margin-top:.6rem">Teams</h2>
@@ -293,15 +305,15 @@
       <h2>How it works</h2>
       <ol class="rules">
         <li>Four teams share one <span class="rPlace">lake</span> of <b class="rName">fish</b>.</li>
-        <li>Each round, every team secretly writes down how many <span class="rName">fish</span> it wants to catch (0 to the max). Collect the slips and type the numbers in.</li>
-        <li>Press <b>Reveal</b>. Each team gets what it asked for. If the <span class="rPlace">lake</span> can't cover every request, the catch is split in proportion to what each team asked for.</li>
+        <li>Each round, every team secretly writes down how many <span class="rName">fish</span> it wants to <span class="vBase">catch</span> (0 to the max). Collect the slips and type the numbers in.</li>
+        <li>Press <b>Reveal</b>. Each team gets what it asked for. If the <span class="rPlace">lake</span> can't cover every request, the <span class="vNoun">catch</span> is split in proportion to what each team asked for.</li>
         <li>Press <b>Regrow</b>. Whatever is left in the <span class="rPlace">lake</span> multiplies, up to its capacity.</li>
         <li>If the <span class="rPlace">lake</span> hits zero it collapses and the game ends early<span id="ruleNoWin">. If that happens before the last round, <b>no one wins</b></span>.</li>
-        <li>Score = total <span class="rName">fish</span> caught by your team, minus any fines.</li>
+        <li>Score = total <span class="rName">fish</span> <span class="vPart">caught</span> by your team, minus any fines.</li>
       </ol>
       <p class="muted">Instructor tips: keep the round count hidden to avoid "last round" grabs. Run a few rounds silent, then tick <b>Teams may talk this round</b> and see whether communication changes behavior.</p>
-      <p class="muted"><b>Anonymous mode</b> hides each team's catch so nobody can tell who overfished (no monitoring). It can be switched on or off during the game, and the results screen always shows the full breakdown.</p>
-      <p class="muted"><b>No-winner rule:</b> turn it off for a pure Hardin game, where teams keep their catch even if the <span class="rPlace">lake</span> collapses. Turn it on when you want the class to share a stake in the <span class="rPlace">lake</span> lasting.</p>
+      <p class="muted"><b>Anonymous mode</b> hides each team's <span class="vNoun">catch</span> so nobody can tell who overfished (no monitoring). It can be switched on or off during the game, and the results screen always shows the full breakdown.</p>
+      <p class="muted"><b>No-winner rule:</b> turn it off for a pure Hardin game, where teams keep their <span class="vNoun">catch</span> even if the <span class="rPlace">lake</span> collapses. Turn it on when you want the class to share a stake in the <span class="rPlace">lake</span> lasting.</p>
       <p class="muted"><b>Fines</b> (under the scoreboard) subtract points from a team's score, for sanctions the class agrees on. Fines don't change the <span class="rPlace">lake</span>.</p>
       <p class="muted">Keyboard: <b>Enter</b> moves between team boxes and reveals; <b>Enter</b> again advances.</p>
       <p class="muted">Progress is saved in this browser, so an accidental refresh won't lose the game.</p>
@@ -364,10 +376,10 @@
     <div class="panel">
       <h2 id="resHeadline">Game over</h2>
       <div class="big" id="resBig"></div>
-      <p class="muted hidden" id="anonReveal">Anonymous mode was on. Here is who actually caught what.</p>
+      <p class="muted hidden" id="anonReveal">Anonymous mode was on. Here is who actually <span class="vPast">caught</span> what.</p>
       <div class="podium" id="podium"></div>
       <div class="compare">
-        <div class="panel"><div class="muted">Total caught by the class</div><div class="v" id="cmpTotal">0</div></div>
+        <div class="panel"><div class="muted">Total <span class="vPart">caught</span> by the class</div><div class="v" id="cmpTotal">0</div></div>
         <div class="panel"><div class="muted">Best possible if everyone held back</div><div class="v" id="cmpBest">0</div></div>
         <div class="panel"><div class="muted">Left in the <span class="rPlace">lake</span></div><div class="v" id="cmpLeft">0</div></div>
       </div>
@@ -564,12 +576,21 @@
 
   // Each icon has a default name, a place it lives, and background colors for the board.
   var PRESETS = {
-    "🐟": { name: "fish", place: "lake", bg: ["#d8ecf7", "#9ccbe6"] },
-    "🌲": { name: "trees", place: "forest", bg: ["#e2f1dc", "#a9d39a"] },
-    "🐄": { name: "cattle", place: "pasture", bg: ["#eef5d6", "#c6dc8f"] },
-    "🦌": { name: "deer", place: "woodland", bg: ["#ece7d6", "#b9c79a"] },
-    "💧": { name: "water", place: "aquifer", bg: ["#dfeefa", "#8fbbe3"] },
-    "🌾": { name: "grain", place: "field", bg: ["#f8efd2", "#e3cd84"] }
+    "🐟": { name: "fish", place: "lake", verb: "catch", bg: ["#d8ecf7", "#9ccbe6"] },
+    "🌲": { name: "trees", place: "forest", verb: "cut", bg: ["#e2f1dc", "#a9d39a"] },
+    "🐄": { name: "cattle", place: "pasture", verb: "take", bg: ["#eef5d6", "#c6dc8f"] },
+    "🦌": { name: "deer", place: "woodland", verb: "hunt", bg: ["#ece7d6", "#b9c79a"] },
+    "💧": { name: "water", place: "aquifer", verb: "draw", bg: ["#dfeefa", "#8fbbe3"] },
+    "🌾": { name: "grain", place: "field", verb: "harvest", bg: ["#f8efd2", "#e3cd84"] }
+  };
+  // base: "will each team catch", past: "Class caught 40", part: "Total caught", noun: "this round's catch"
+  var VERBS = {
+    catch: { base: "catch", past: "caught", part: "caught", noun: "catch" },
+    cut: { base: "cut", past: "cut", part: "cut", noun: "cut" },
+    hunt: { base: "hunt", past: "hunted", part: "hunted", noun: "hunt" },
+    take: { base: "take", past: "took", part: "taken", noun: "take" },
+    draw: { base: "draw", past: "drew", part: "drawn", noun: "draw" },
+    harvest: { base: "harvest", past: "harvested", part: "harvested", noun: "harvest" }
   };
   function presetValues(key) {
     return Object.keys(PRESETS).map(function (k) { return PRESETS[k][key]; });
@@ -579,6 +600,19 @@
   function place() {
     if (!S) return "lake";
     return S.cfg.place || (PRESETS[S.cfg.emoji] || PRESETS["🐟"]).place;
+  }
+
+  // Games saved before the Harvest word setting existed fall back to the icon's usual verb.
+  function verb() {
+    var key = S && (S.cfg.verb || (PRESETS[S.cfg.emoji] || PRESETS["🐟"]).verb);
+    return VERBS[key] || VERBS.catch;
+  }
+
+  function applyVerbText(v) {
+    ["base", "past", "part", "noun"].forEach(function (form) {
+      var cls = "v" + cap(form);
+      document.querySelectorAll("." + cls).forEach(function (el) { el.textContent = v[form]; });
+    });
   }
 
   function applyPlaceText(pl) {
@@ -609,6 +643,7 @@
   function fillSetup(cfg) {
     $("resName").value = cfg.resName;
     $("resPlace").value = cfg.place || (PRESETS[cfg.emoji] || PRESETS["🐟"]).place;
+    $("resVerb").value = cfg.verb || (PRESETS[cfg.emoji] || PRESETS["🐟"]).verb;
     $("resEmoji").value = cfg.emoji;
     $("capacity").value = cfg.capacity;
     $("start").value = cfg.start;
@@ -636,6 +671,7 @@
     return {
       resName: ($("resName").value || "").trim() || "fish",
       place: ($("resPlace").value || "").trim() || "lake",
+      verb: $("resVerb").value,
       emoji: $("resEmoji").value,
       capacity: capacity,
       start: clampInt($("start").value, 1, capacity, capacity),
@@ -658,6 +694,7 @@
     var n = ($("resName").value || "").trim() || "fish";
     document.querySelectorAll(".rName").forEach(function (el) { el.textContent = n; });
     applyPlaceText(($("resPlace").value || "").trim() || "lake");
+    applyVerbText(VERBS[$("resVerb").value] || VERBS.catch);
   }
 
   // Picking a new icon fills in its name and place, unless the instructor typed custom ones.
@@ -667,6 +704,7 @@
     var name = ($("resName").value || "").trim(), pl = ($("resPlace").value || "").trim();
     if (!name || presetValues("name").indexOf(name) >= 0) $("resName").value = p.name;
     if (!pl || presetValues("place").indexOf(pl) >= 0) $("resPlace").value = p.place;
+    $("resVerb").value = p.verb;
     syncResName();
   }
 
@@ -786,9 +824,9 @@
     var html = "";
     S.cfg.teams.forEach(function (t, i) {
       var line;
-      if (anon()) line = fines[i] ? "Fines: <b>−" + fines[i] + "</b>" : "Catch hidden";
-      else if (fines[i]) line = "Score: <b>" + scores[i] + "</b> (caught " + totals[i] + ", fined " + fines[i] + ")";
-      else line = "Total caught: <b>" + totals[i] + "</b>";
+      if (anon()) line = fines[i] ? "Fines: <b>−" + fines[i] + "</b>" : cap(verb().noun) + " hidden";
+      else if (fines[i]) line = "Score: <b>" + scores[i] + "</b> (" + verb().part + " " + totals[i] + ", fined " + fines[i] + ")";
+      else line = "Total " + verb().part + ": <b>" + totals[i] + "</b>";
       html += '<div class="team-card" id="card' + i + '" style="border-left-color:' + esc(t.color) + '">' +
         '<div class="name">' + esc(t.name) + "</div>" +
         '<div class="total" id="tot' + i + '">' + line + "</div>";
@@ -836,7 +874,7 @@
     $("btnMain").disabled = !ok;
     var filled = S.pending.filter(function (v) { return v !== ""; }).length;
     $("msg").textContent = ok ? "All four teams are in. Press Reveal." :
-      filled + " of 4 teams entered. Each team can catch 0 to " + S.cfg.maxTake + ".";
+      filled + " of 4 teams entered. Each team can " + verb().base + " 0 to " + S.cfg.maxTake + ".";
     $("msg").style.color = "";
     return ok;
   }
@@ -845,12 +883,12 @@
     var btn = $("btnMain");
     $("talkWrap").classList.toggle("hidden", S.phase !== "entry");
     if (S.phase === "entry") {
-      $("phaseTitle").textContent = "How many will each team catch?";
+      $("phaseTitle").textContent = "How many will each team " + verb().base + "?";
       btn.textContent = "Reveal";
       validateEntry();
     } else if (S.phase === "revealed") {
       var h = lastRound();
-      $("phaseTitle").textContent = "This round's catch";
+      $("phaseTitle").textContent = "This round's " + verb().noun;
       btn.disabled = false;
       if (h.afterHarvest <= 0) {
         btn.textContent = "See results";
@@ -858,7 +896,7 @@
         btn.textContent = "Regrow " + S.cfg.resName;
       }
     } else if (S.phase === "grown") {
-      $("phaseTitle").textContent = "This round's catch";
+      $("phaseTitle").textContent = "This round's " + verb().noun;
       btn.disabled = false;
       btn.textContent = S.history.length >= S.cfg.rounds ? "See results" : "Start round " + (S.history.length + 1);
     }
@@ -866,8 +904,8 @@
 
   function revealMessage(h) {
     var total = sum(h.takes), asked = sum(h.requests);
-    var m = "Class caught " + total + ". ";
-    if (asked > h.stockBefore) m += "Demand (" + asked + ") was more than the " + place() + " held, so the catch was split. ";
+    var m = "Class " + verb().past + " " + total + ". ";
+    if (asked > h.stockBefore) m += "Demand (" + asked + ") was more than the " + place() + " held, so the " + verb().noun + " was split. ";
     if (h.afterHarvest <= 0) {
       m += "The " + place() + " is empty. It has collapsed.";
       if (noWinnerRule() && S.history.length < S.cfg.rounds) m += " No one wins.";
@@ -888,7 +926,7 @@
     var hide = anon();
     var html = "<thead><tr><th>Team</th>";
     S.history.forEach(function (h, r) { html += "<th>R" + (r + 1) + "</th>"; });
-    html += "<th>Caught</th><th>Fines</th><th>Score</th></tr></thead><tbody>";
+    html += "<th>" + cap(verb().part) + "</th><th>Fines</th><th>Score</th></tr></thead><tbody>";
     S.cfg.teams.forEach(function (t, i) {
       html += '<tr><td><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + "</td>";
       S.history.forEach(function (h) {
@@ -961,7 +999,7 @@
     var n = Math.max(cfg.rounds, hist.length);
     var cw = (W - L - R) / n;
     var y = function (v) { return T + (H - T - B) * (1 - v / cfg.capacity); };
-    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(cap(place())) + ' level and catch per round">';
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(cap(place())) + ' level and ' + verb().noun + ' per round">';
     // grid
     [0, 0.25, 0.5, 0.75, 1].forEach(function (f) {
       var v = Math.round(cfg.capacity * f);
@@ -1003,10 +1041,10 @@
   function renderLegend() {
     var html = '<span><span class="swatch" style="background:#0b6e99"></span>' + esc(cap(place())) + " at start of round</span>";
     if (anon()) {
-      html += '<span><span class="swatch" style="background:' + NEUTRAL + '"></span>Class catch</span>';
+      html += '<span><span class="swatch" style="background:' + NEUTRAL + '"></span>Class ' + verb().noun + "</span>";
     } else {
       S.cfg.teams.forEach(function (t) {
-        html += '<span><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + " catch</span>";
+        html += '<span><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + " " + verb().noun + "</span>";
       });
     }
     $("chartLegend").innerHTML = html;
@@ -1017,6 +1055,7 @@
   function renderAll(mode, delta) {
     $("title").textContent = "Tragedy of the Commons: " + S.cfg.emoji + " " + S.cfg.resName;
     applyPlaceText(place());
+    applyVerbText(verb());
     applyBoardColors(S.cfg.emoji);
     renderRoundLabel();
     renderStock(delta);
@@ -1187,6 +1226,7 @@
     var noWinner = isNoWinner();
 
     applyPlaceText(place());
+    applyVerbText(verb());
     $("resHeadline").textContent = collapsed ? "The " + place() + " collapsed in round " + played : "Game over after " + played + " rounds";
     $("resBig").textContent = noWinner
       ? "No one wins. The " + place() + " didn't last all " + cfg.rounds + " rounds."
@@ -1204,7 +1244,7 @@
         '<div class="muted">' + (noWinner ? "No winner" : "#" + (rank + 1)) + "</div>" +
         '<div class="name">' + esc(t.name) + "</div>" +
         '<div class="took">' + scores[i] + "</div>" +
-        '<div class="muted">' + (fines[i] ? "caught " + totals[i] + ", fined " + fines[i] : "caught " + totals[i]) +
+        '<div class="muted">' + (fines[i] ? verb().part + " " + totals[i] + ", fined " + fines[i] : verb().part + " " + totals[i]) +
         "</div></div>";
     });
     $("podium").innerHTML = html;
@@ -1221,7 +1261,7 @@
       "Sustainable strategy: keep at least " + sy.keep + " " + cfg.resName + " in the " + place() + " after each harvest. " +
       "From a full " + place() + " that allows about " + sy.perRound + " per round in total, or about " +
       Math.floor(sy.perRound / 4) + " per team, forever. " +
-      "“Best possible” is the most the class could have caught in " + cfg.rounds +
+      "“Best possible” is the most the class could have " + verb().part + " in " + cfg.rounds +
       " rounds with perfect cooperation, given the " + cfg.maxTake + "-per-team limit.";
 
     chartSvg("resChart", true);
@@ -1285,6 +1325,7 @@
   $("resName").addEventListener("input", syncResName);
   $("resPlace").addEventListener("input", syncResName);
   $("resEmoji").addEventListener("change", onIconChange);
+  $("resVerb").addEventListener("change", syncResName);
   $("noWinnerRule").addEventListener("change", syncRuleText);
   $("btnFull").addEventListener("click", function () {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -1309,7 +1350,7 @@
     $("cmpEmpty").classList.toggle("hidden", a.length > 0);
     $("cmpTable").classList.toggle("hidden", !a.length);
     var html = "<thead><tr><th>Game</th><th>Conditions</th><th>Rounds</th><th>Outcome</th>" +
-      "<th>Class catch</th><th>Best possible</th><th>% of best</th><th>Fines</th><th></th></tr></thead><tbody>";
+      "<th>Class total</th><th>Best possible</th><th>% of best</th><th>Fines</th><th></th></tr></thead><tbody>";
     a.forEach(function (g, k) {
       var conds = "";
       conds += g.talkRounds ? chip("Talk: " + g.talkRounds + " rd", "talk") : chip("Silent");
@@ -1419,7 +1460,7 @@
     $("btnResume").classList.remove("hidden");
   } else {
     fillSetup({
-      resName: "fish", place: "lake", emoji: "🐟", capacity: 100, start: 100, growth: 2,
+      resName: "fish", place: "lake", verb: "catch", emoji: "🐟", capacity: 100, start: 100, growth: 2,
       maxTake: 20, rounds: 8, showRounds: false, mask: true,
       teams: DEFAULT_TEAMS
     });

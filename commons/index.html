@@ -158,6 +158,12 @@
   th { font-size: .85rem; color: var(--muted); font-weight: 600; }
   .swatch { display: inline-block; width: .8em; height: .8em; border-radius: 3px; margin-right: .4em; vertical-align: -1px; }
 
+  .rank {
+    display: inline-block; margin-left: .4em; padding: .05em .55em; border-radius: 999px;
+    background: #e7eef3; color: var(--ink); font-size: .8em; font-weight: 700; vertical-align: 1px;
+  }
+  .rank.lead { background: #fff1d6; color: var(--warn); }
+  td.bonus { color: var(--good); }
   .fine-form { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: 1rem; }
   .fine-form select, .fine-form input {
     padding: .4em .5em; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: .9em;
@@ -286,8 +292,14 @@
           <label for="rounds">Number of rounds</label>
           <input id="rounds" type="number" min="1" max="30" value="8">
         </div>
+        <div class="field">
+          <label for="bonus">Bonus for the biggest <span class="vNoun">catch</span> each round</label>
+          <input id="bonus" type="number" min="0" max="100" value="0">
+          <small>Points added to the score of the one team that <span class="vPast">caught</span> the most. Ties get nothing. 0 turns it off.</small>
+        </div>
       </div>
       <label class="checkbox"><input id="showRounds" type="checkbox"> Show students how many rounds there are</label>
+      <label class="checkbox"><input id="showRank" type="checkbox" checked> Show a live ranking during the game (hidden in anonymous mode)</label>
       <label class="checkbox"><input id="maskInputs" type="checkbox" checked> Hide numbers while typing them in</label>
       <label class="checkbox"><input id="anonymous" type="checkbox"> Anonymous mode: show only the class total, not each team's <span class="vNoun">catch</span></label>
       <label class="checkbox"><input id="noWinnerRule" type="checkbox" checked> No winner if the <span class="rPlace">lake</span> collapses before the last round</label>
@@ -309,10 +321,11 @@
         <li>Press <b>Reveal</b>. Each team gets what it asked for. If the <span class="rPlace">lake</span> can't cover every request, the <span class="vNoun">catch</span> is split in proportion to what each team asked for.</li>
         <li>Press <b>Regrow</b>. Whatever is left in the <span class="rPlace">lake</span> multiplies, up to its capacity.</li>
         <li>If the <span class="rPlace">lake</span> hits zero it collapses and the game ends early<span id="ruleNoWin">. If that happens before the last round, <b>no one wins</b></span>.</li>
-        <li>Score = total <span class="rName">fish</span> <span class="vPart">caught</span> by your team, minus any fines.</li>
+        <li>Score = total <span class="rName">fish</span> <span class="vPart">caught</span> by your team<span id="ruleBonus">, plus any round bonuses,</span> minus any fines.</li>
       </ol>
       <p class="muted">Instructor tips: keep the round count hidden to avoid "last round" grabs. Run a few rounds silent, then tick <b>Teams may talk this round</b> and see whether communication changes behavior.</p>
       <p class="muted"><b>Anonymous mode</b> hides each team's <span class="vNoun">catch</span> so nobody can tell who overfished (no monitoring). It can be switched on or off during the game, and the results screen always shows the full breakdown.</p>
+      <p class="muted"><b>To make the tragedy bite:</b> turn the no-winner rule off, turn anonymous mode on, set a round bonus (try 5), and give first place a real prize. Each makes holding back cost a team something.</p>
       <p class="muted"><b>No-winner rule:</b> turn it off for a pure Hardin game, where teams keep their <span class="vNoun">catch</span> even if the <span class="rPlace">lake</span> collapses. Turn it on when you want the class to share a stake in the <span class="rPlace">lake</span> lasting.</p>
       <p class="muted"><b>Fines</b> (under the scoreboard) subtract points from a team's score, for sanctions the class agrees on. Fines don't change the <span class="rPlace">lake</span>.</p>
       <p class="muted">Keyboard: <b>Enter</b> moves between team boxes and reveals; <b>Enter</b> again advances.</p>
@@ -489,6 +502,7 @@
       best: S.best,
       fineTotal: sum(teamFines()),
       fineCount: S.fines.length,
+      bonus: S.cfg.bonus || 0,
       talkRounds: S.history.filter(function (h) { return h.talk; }).length,
       anonRounds: S.history.filter(function (h) { return h.anon; }).length
     };
@@ -654,6 +668,9 @@
     $("maskInputs").checked = cfg.mask;
     $("anonymous").checked = !!cfg.anonymous;
     $("noWinnerRule").checked = cfg.noWinnerRule !== false;
+    $("bonus").value = cfg.bonus || 0;
+    $("showRank").checked = cfg.showRank !== false;
+    syncBonusText();
     syncRuleText();
     renderTeamFields(cfg.teams);
     syncResName();
@@ -682,8 +699,14 @@
       mask: $("maskInputs").checked,
       anonymous: $("anonymous").checked,
       noWinnerRule: $("noWinnerRule").checked,
+      bonus: clampInt($("bonus").value, 0, 100, 0),
+      showRank: $("showRank").checked,
       teams: teams
     };
+  }
+
+  function syncBonusText() {
+    $("ruleBonus").classList.toggle("hidden", !(clampInt($("bonus").value, 0, 100, 0) > 0));
   }
 
   function syncRuleText() {
@@ -736,9 +759,29 @@
     S.fines.forEach(function (x) { f[x.team] += x.amount; });
     return f;
   }
+  function teamBonuses() {
+    var b = [0, 0, 0, 0];
+    S.history.forEach(function (h) { if (h.bonusTeam >= 0) b[h.bonusTeam] += h.bonus; });
+    return b;
+  }
   function teamScores() {
-    var t = teamTotals(), f = teamFines();
-    return t.map(function (v, i) { return v - f[i]; });
+    var t = teamTotals(), f = teamFines(), b = teamBonuses();
+    return t.map(function (v, i) { return v + b[i] - f[i]; });
+  }
+  // Competition ranking: tied scores share a place (1, 1, 3, 4).
+  function teamRanks(scores) {
+    return scores.map(function (v) {
+      return 1 + scores.filter(function (w) { return w > v; }).length;
+    });
+  }
+  function ordinal(n) { return n + (["th", "st", "nd", "rd"][n] || "th"); }
+  function showRanks() { return S.cfg.showRank !== false && !anon() && S.history.length > 0; }
+  // The bonus goes to the one team with strictly the biggest catch; ties get nothing.
+  function bonusWinner(takes) {
+    var max = Math.max.apply(null, takes);
+    if (max <= 0) return -1;
+    var top = takes.filter(function (v) { return v === max; }).length;
+    return top === 1 ? takes.indexOf(max) : -1;
   }
   function anon() { return !!S.cfg.anonymous; }
   // Older saved games predate the setting and used the rule, so treat missing as on.
@@ -819,14 +862,22 @@
   }
 
   function renderTeamCards() {
-    var totals = teamTotals(), fines = teamFines(), scores = teamScores();
+    var totals = teamTotals(), fines = teamFines(), bonuses = teamBonuses(), scores = teamScores();
+    var ranks = teamRanks(scores), ranked = showRanks();
     var h = lastRound();
     var html = "";
     S.cfg.teams.forEach(function (t, i) {
-      var line;
+      var line, extras = [];
+      if (bonuses[i]) extras.push("bonus " + bonuses[i]);
+      if (fines[i]) extras.push("fined " + fines[i]);
       if (anon()) line = fines[i] ? "Fines: <b>−" + fines[i] + "</b>" : cap(verb().noun) + " hidden";
-      else if (fines[i]) line = "Score: <b>" + scores[i] + "</b> (" + verb().part + " " + totals[i] + ", fined " + fines[i] + ")";
+      else if (extras.length) line = "Score: <b>" + scores[i] + "</b> (" + verb().part + " " + totals[i] + ", " + extras.join(", ") + ")";
       else line = "Total " + verb().part + ": <b>" + totals[i] + "</b>";
+      if (ranked) {
+        line += ranks[i] === 1
+          ? ' <span class="rank lead">Leading</span>'
+          : ' <span class="rank">' + ordinal(ranks[i]) + "</span>";
+      }
       html += '<div class="team-card" id="card' + i + '" style="border-left-color:' + esc(t.color) + '">' +
         '<div class="name">' + esc(t.name) + "</div>" +
         '<div class="total" id="tot' + i + '">' + line + "</div>";
@@ -911,6 +962,11 @@
       if (noWinnerRule() && S.history.length < S.cfg.rounds) m += " No one wins.";
     }
     else m += h.afterHarvest + " " + S.cfg.resName + " left in the " + place() + ".";
+    if (h.bonus > 0) {
+      if (h.bonusTeam < 0) m += " No bonus this round: tied for the biggest " + verb().noun + ".";
+      else if (anon()) m += " A team earned the +" + h.bonus + " bonus (hidden).";
+      else m += " " + S.cfg.teams[h.bonusTeam].name + " earns the +" + h.bonus + " bonus.";
+    }
     return m;
   }
 
@@ -922,28 +978,36 @@
   }
 
   function renderScore() {
-    var totals = teamTotals(), fines = teamFines(), scores = teamScores();
+    var totals = teamTotals(), fines = teamFines(), bonuses = teamBonuses(), scores = teamScores();
+    var ranks = teamRanks(scores), ranked = showRanks();
     var hide = anon();
+    var hasBonus = S.cfg.bonus > 0 || bonuses.some(function (v) { return v > 0; });
+    // Columns after the per-round ones, so the class and lake rows can pad to match.
+    var tail = 3 + (hasBonus ? 1 : 0) + (ranked ? 1 : 0);
     var html = "<thead><tr><th>Team</th>";
     S.history.forEach(function (h, r) { html += "<th>R" + (r + 1) + "</th>"; });
-    html += "<th>" + cap(verb().part) + "</th><th>Fines</th><th>Score</th></tr></thead><tbody>";
+    html += "<th>" + cap(verb().part) + "</th>" + (hasBonus ? "<th>Bonus</th>" : "") +
+      "<th>Fines</th><th>Score</th>" + (ranked ? "<th>Rank</th>" : "") + "</tr></thead><tbody>";
     S.cfg.teams.forEach(function (t, i) {
       html += '<tr><td><span class="swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + "</td>";
       S.history.forEach(function (h) {
         html += "<td>" + (hide ? "?" : h.takes[i]) + "</td>";
       });
       html += "<td>" + (hide ? "?" : totals[i]) + "</td>" +
+        (hasBonus ? '<td class="bonus">' + (hide ? "?" : bonuses[i] ? "+" + bonuses[i] : "") + "</td>" : "") +
         '<td class="fine">' + (fines[i] ? "−" + fines[i] : "") + "</td>" +
-        "<td><b>" + (hide ? "?" : scores[i]) + "</b></td></tr>";
+        "<td><b>" + (hide ? "?" : scores[i]) + "</b></td>" +
+        (ranked ? "<td><b>" + ordinal(ranks[i]) + "</b></td>" : "") + "</tr>";
     });
+    var pad = new Array(tail).join("<td></td>");
     html += '<tr class="class-row"><td>Class total</td>';
     S.history.forEach(function (h) { html += "<td>" + sum(h.takes) + "</td>"; });
-    html += "<td>" + sum(totals) + "</td><td></td><td></td></tr>";
+    html += "<td>" + sum(totals) + "</td>" + pad + "</tr>";
     html += '<tr><td class="muted">' + esc(cap(place())) + " after regrowth</td>";
     S.history.forEach(function (h) {
       html += '<td class="muted">' + (h.grown ? h.afterGrowth : "…") + "</td>";
     });
-    html += "<td></td><td></td><td></td></tr></tbody>";
+    html += "<td></td>" + pad + "</tr></tbody>";
     $("score").innerHTML = html;
   }
 
@@ -1097,7 +1161,9 @@
       afterGrowth: null,
       grown: false,
       talk: $("talk").checked,
-      anon: anon()
+      anon: anon(),
+      bonus: S.cfg.bonus || 0,
+      bonusTeam: S.cfg.bonus > 0 ? bonusWinner(takes) : -1
     };
     S.history.push(h);
     S.stock = h.afterHarvest;
@@ -1236,16 +1302,19 @@
     $("resBig").classList.toggle("no-winner", noWinner);
     $("podium").classList.toggle("no-winner", noWinner);
 
+    var bonuses = teamBonuses(), ranks = teamRanks(scores);
     var order = [0, 1, 2, 3].sort(function (a, b) { return scores[b] - scores[a]; });
     var html = "";
-    order.forEach(function (i, rank) {
+    order.forEach(function (i) {
       var t = cfg.teams[i];
+      var detail = [verb().part + " " + totals[i]];
+      if (bonuses[i]) detail.push("bonus " + bonuses[i]);
+      if (fines[i]) detail.push("fined " + fines[i]);
       html += '<div class="team-card" style="border-left-color:' + esc(t.color) + '">' +
-        '<div class="muted">' + (noWinner ? "No winner" : "#" + (rank + 1)) + "</div>" +
+        '<div class="muted">' + (noWinner ? "No winner" : "#" + ranks[i]) + "</div>" +
         '<div class="name">' + esc(t.name) + "</div>" +
         '<div class="took">' + scores[i] + "</div>" +
-        '<div class="muted">' + (fines[i] ? verb().part + " " + totals[i] + ", fined " + fines[i] : verb().part + " " + totals[i]) +
-        "</div></div>";
+        '<div class="muted">' + detail.join(", ") + "</div></div>";
     });
     $("podium").innerHTML = html;
     var wasAnon = S.history.some(function (h) { return h.anon; });
@@ -1327,6 +1396,7 @@
   $("resEmoji").addEventListener("change", onIconChange);
   $("resVerb").addEventListener("change", syncResName);
   $("noWinnerRule").addEventListener("change", syncRuleText);
+  $("bonus").addEventListener("input", syncBonusText);
   $("btnFull").addEventListener("click", function () {
     if (document.fullscreenElement) document.exitFullscreen();
     else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
@@ -1356,6 +1426,7 @@
       conds += g.talkRounds ? chip("Talk: " + g.talkRounds + " rd", "talk") : chip("Silent");
       if (g.anonRounds) conds += chip("Anonymous: " + g.anonRounds + " rd", "anon");
       if (g.noWinnerRule) conds += chip("No-winner rule");
+      if (g.bonus) conds += chip("Bonus +" + g.bonus);
       if (g.fineCount) conds += chip("Fines: " + g.fineCount, "danger");
       var pct = g.best > 0 ? Math.round(100 * g.classTotal / g.best) + "%" : "n/a";
       var when = new Date(g.endedAt);
@@ -1461,7 +1532,7 @@
   } else {
     fillSetup({
       resName: "fish", place: "lake", verb: "catch", emoji: "🐟", capacity: 100, start: 100, growth: 2,
-      maxTake: 20, rounds: 8, showRounds: false, mask: true,
+      maxTake: 20, rounds: 8, showRounds: false, mask: true, bonus: 0, showRank: true,
       teams: DEFAULT_TEAMS
     });
   }
